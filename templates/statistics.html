@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}统计分析 - 期货交易记录系统{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">统计分析</h1>
+    <p class="mt-2 text-gray-600">详细的交易数据分析和风险指标</p>
+</div>
+
+<!-- 基础统计卡片 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">已平仓交易</dt>
+            <dd class="mt-1 text-3xl font-semibold text-gray-900">{{ stats.closed_trades }}</dd>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">盈利交易</dt>
+            <dd class="mt-1 text-3xl font-semibold text-green-600">{{ stats.profitable_trades }}</dd>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">亏损交易</dt>
+            <dd class="mt-1 text-3xl font-semibold text-red-600">{{ stats.losing_trades }}</dd>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">胜率</dt>
+            <dd class="mt-1 text-3xl font-semibold {{ get_color_for_value(stats.win_rate - 50) }}">{{ format_percentage(stats.win_rate) }}</dd>
+        </div>
+    </div>
+</div>
+
+<!-- 盈亏统计 -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">总盈亏</dt>
+            <dd class="mt-1 text-2xl font-semibold {{ get_color_for_value(stats.total_profit_loss) }}">
+                {{ format_currency(stats.total_profit_loss) }}
+            </dd>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">最大盈利</dt>
+            <dd class="mt-1 text-2xl font-semibold text-green-600">{{ format_currency(stats.max_profit) }}</dd>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">最大亏损</dt>
+            <dd class="mt-1 text-2xl font-semibold text-red-600">{{ format_currency(stats.max_loss) }}</dd>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">平均盈亏</dt>
+            <dd class="mt-1 text-2xl font-semibold {{ get_color_for_value(stats.avg_profit_loss) }}">
+                {{ format_currency(stats.avg_profit_loss) }}
+            </dd>
+        </div>
+    </div>
+</div>
+
+<!-- 风险指标 -->
+<div class="bg-white shadow rounded-lg mb-8">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">风险指标</h3>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <div class="text-center">
+                <p class="text-sm text-gray-500">最大回撤</p>
+                <p class="mt-1 text-xl font-semibold text-red-600">{{ format_currency(risk_metrics.max_drawdown) }}</p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-500">平均盈利</p>
+                <p class="mt-1 text-xl font-semibold text-green-600">{{ format_currency(risk_metrics.avg_profit) }}</p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-500">平均亏损</p>
+                <p class="mt-1 text-xl font-semibold text-red-600">{{ format_currency(risk_metrics.avg_loss) }}</p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-500">盈亏比</p>
+                <p class="mt-1 text-xl font-semibold text-gray-900">{{ risk_metrics.profit_factor }}</p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-500">期望值</p>
+                <p class="mt-1 text-xl font-semibold {{ get_color_for_value(risk_metrics.expectancy) }}">
+                    {{ format_currency(risk_metrics.expectancy) }}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 多空统计 -->
+<div class="bg-white shadow rounded-lg mb-8">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">多空方向统计</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="border rounded-lg p-4 {% if direction_stats.long.profit_loss >= 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %}">
+                <h4 class="font-medium text-gray-900 mb-3">多单统计</h4>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-500">交易次数</p>
+                        <p class="font-semibold">{{ direction_stats.long.count }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">胜率</p>
+                        <p class="font-semibold">{{ format_percentage(direction_stats.long.win_rate) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">总盈亏</p>
+                        <p class="font-semibold {{ get_color_for_value(direction_stats.long.profit_loss) }}">
+                            {{ format_currency(direction_stats.long.profit_loss) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">平均盈亏</p>
+                        <p class="font-semibold {{ get_color_for_value(direction_stats.long.avg_profit) }}">
+                            {{ format_currency(direction_stats.long.avg_profit) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border rounded-lg p-4 {% if direction_stats.short.profit_loss >= 0 %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %}">
+                <h4 class="font-medium text-gray-900 mb-3">空单统计</h4>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-500">交易次数</p>
+                        <p class="font-semibold">{{ direction_stats.short.count }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">胜率</p>
+                        <p class="font-semibold">{{ format_percentage(direction_stats.short.win_rate) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">总盈亏</p>
+                        <p class="font-semibold {{ get_color_for_value(direction_stats.short.profit_loss) }}">
+                            {{ format_currency(direction_stats.short.profit_loss) }}
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500">平均盈亏</p>
+                        <p class="font-semibold {{ get_color_for_value(direction_stats.short.avg_profit) }}">
+                            {{ format_currency(direction_stats.short.avg_profit) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- 月度统计 -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">月度收益统计</h3>
+            <canvas id="monthlyStatsChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- 品种表现 -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">品种表现对比</h3>
+            <canvas id="productPerformanceChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- 价格走势 -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">价格走势对比</h3>
+            <canvas id="priceTrendChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- 胜率趋势 -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">胜率趋势</h3>
+            <canvas id="winRateTrendChart" height="250"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 品种详细统计 -->
+<div class="bg-white shadow rounded-lg">
+    <div class="px-4 py-5 sm:px-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900">品种详细统计</h3>
+    </div>
+    <div class="border-t border-gray-200">
+        {% if product_performance %}
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">品种</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">交易次数</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总盈亏</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">胜率</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for product in product_performance %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ product.product }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ product.count }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm {{ get_color_for_value(product.profit_loss) }}">
+                        {{ format_currency(product.profit_loss) }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ format_percentage(product.win_rate) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-4 py-5 text-center text-gray-500">暂无数据</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 月度统计图
+    const monthlyStatsCtx = document.getElementById('monthlyStatsChart');
+    if (monthlyStatsCtx) {
+        const monthlyStats = {{ monthly_stats | tojson }};
+        new Chart(monthlyStatsCtx, {
+            type: 'bar',
+            data: {
+                labels: monthlyStats.map(m => m.month),
+                datasets: [{
+                    label: '盈亏',
+                    data: monthlyStats.map(m => m.profit_loss),
+                    backgroundColor: monthlyStats.map(m => m.profit_loss >= 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)'),
+                    yAxisID: 'y'
+                }, {
+                    label: '胜率 (%)',
+                    data: monthlyStats.map(m => m.win_rate),
+                    type: 'line',
+                    borderColor: 'rgb(234, 179, 8)',
+                    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: '盈亏'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: '胜率 (%)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 品种表现图
+    const productPerformanceCtx = document.getElementById('productPerformanceChart');
+    if (productPerformanceCtx) {
+        const productPerformance = {{ product_performance | tojson }};
+        new Chart(productPerformanceCtx, {
+            type: 'doughnut',
+            data: {
+                labels: productPerformance.map(p => p.product),
+                datasets: [{
+                    data: productPerformance.map(p => Math.abs(p.profit_loss)),
+                    backgroundColor: productPerformance.map(p => p.profit_loss >= 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)')
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+    }
+
+    // 价格走势图
+    const priceTrendCtx = document.getElementById('priceTrendChart');
+    if (priceTrendCtx) {
+        const priceTrend = {{ price_trend | tojson }};
+        new Chart(priceTrendCtx, {
+            type: 'line',
+            data: {
+                labels: priceTrend.labels,
+                datasets: [{
+                    label: '开仓价',
+                    data: priceTrend.entry_prices,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.1
+                }, {
+                    label: '平仓价',
+                    data: priceTrend.exit_prices,
+                    borderColor: 'rgb(234, 179, 8)',
+                    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 胜率趋势图
+    const winRateTrendCtx = document.getElementById('winRateTrendChart');
+    if (winRateTrendCtx) {
+        const winRateTrend = {{ win_rate_trend | tojson }};
+        new Chart(winRateTrendCtx, {
+            type: 'line',
+            data: {
+                labels: winRateTrend.map(w => w.trade_num),
+                datasets: [{
+                    label: '胜率 (%)',
+                    data: winRateTrend.map(w => w.win_rate),
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: '交易序号'
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '胜率 (%)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

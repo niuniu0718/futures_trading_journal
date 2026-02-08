@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo:*)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(npm config get:*)",
+      "Bash(~/.zshrc)",
+      "Bash(source:*)",
+      "Bash(claude:*)",
+      "Bash(export:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(FLASK_RUN_PORT=5001 python3:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(kill:*)",
+      "Bash(chmod:*)",
+      "Bash(./package.sh:*)",
+      "Bash(git init:*)"
+    ]
+  }
+}

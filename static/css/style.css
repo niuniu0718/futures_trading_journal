@@ -1,0 +1,125 @@
+/* 自定义样式 */
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* 表格样式增强 */
+table {
+    border-collapse: collapse;
+}
+
+tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* 输入框焦点样式 */
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* 卡片过渡效果 */
+.bg-white {
+    transition: box-shadow 0.3s ease;
+}
+
+.bg-white:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* 按钮点击效果 */
+button:active,
+a:active {
+    transform: scale(0.98);
+}
+
+/* 加载动画 */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+    .sm\:px-6 {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    table {
+        font-size: 0.875rem;
+    }
+
+    .px-6 {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+}
+
+/* 图表容器 */
+canvas {
+    max-height: 300px;
+}
+
+/* 模态框动画 */
+.modal-enter {
+    animation: modalIn 0.3s ease-out;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* 状态标签颜色增强 */
+.bg-red-100 {
+    background-color: #fee2e2;
+}
+
+.bg-green-100 {
+    background-color: #dcfce7;
+}
+
+.bg-blue-100 {
+    background-color: #dbeafe;
+}
+
+.bg-gray-100 {
+    background-color: #f3f4f6;
+}

@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Database
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Exports
+exports/*
+!exports/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Package files
+*.zip
+期货交易记录系统-*.zip
+
+# Temporary files
+*.tmp
+package_temp/

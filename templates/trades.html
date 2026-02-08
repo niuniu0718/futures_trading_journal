@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+
+{% block title %}交易记录 - 期货交易记录系统{% endblock %}
+
+{% block content %}
+<div class="md:flex md:items-center md:justify-between mb-6">
+    <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold text-gray-900">交易记录</h1>
+    </div>
+    <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
+        <form action="{{ url_for('import_data') }}" method="POST" enctype="multipart/form-data" class="inline">
+            <input type="file" name="file" accept=".csv" class="hidden" id="importFile" onchange="this.form.submit()">
+            <button type="button" onclick="document.getElementById('importFile').click()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                导入
+            </button>
+        </form>
+        <a href="{{ url_for('export_csv') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            导出
+        </a>
+        <a href="{{ url_for('new_trade') }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+            <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            新建交易
+        </a>
+    </div>
+</div>
+
+<!-- 筛选器 -->
+<div class="bg-white shadow rounded-lg mb-6">
+    <div class="px-4 py-5 sm:p-6">
+        <form action="{{ url_for('trades') }}" method="GET" class="grid grid-cols-1 md:grid-cols-7 gap-4">
+            <input type="hidden" name="order_by" value="{{ current_order_by }}">
+            <input type="hidden" name="order" value="{{ current_order }}">
+            <div>
+                <label for="status" class="block text-sm font-medium text-gray-700">状态</label>
+                <select name="status" id="status" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">全部</option>
+                    <option value="open" {% if current_status == 'open' %}selected{% endif %}>持仓中</option>
+                    <option value="closed" {% if current_status == 'closed' %}selected{% endif %}>已平仓</option>
+                </select>
+            </div>
+            <div>
+                <label for="product" class="block text-sm font-medium text-gray-700">品种</label>
+                <select name="product" id="product" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">全部</option>
+                    {% for product in products %}
+                    <option value="{{ product }}" {% if current_product == product %}selected{% endif %}>{{ product }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="has_po" class="block text-sm font-medium text-gray-700">关联PO</label>
+                <select name="has_po" id="has_po" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">全部</option>
+                    <option value="yes" {% if current_has_po == 'yes' %}selected{% endif %}>有PO</option>
+                    <option value="no" {% if current_has_po == 'no' %}selected{% endif %}>无PO</option>
+                </select>
+            </div>
+            <div>
+                <label for="start_date" class="block text-sm font-medium text-gray-700">开始日期</label>
+                <input type="date" name="start_date" id="start_date" value="{% if current_start_date %}{{ current_start_date }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="end_date" class="block text-sm font-medium text-gray-700">结束日期</label>
+                <input type="date" name="end_date" id="end_date" value="{% if current_end_date %}{{ current_end_date }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="month" class="block text-sm font-medium text-gray-700">SMM月份</label>
+                <select name="month" id="month" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">选择月份</option>
+                    {% for month in available_months %}
+                    <option value="{{ month }}" {% if smm_month == month %}selected{% endif %}>{{ month }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="flex-1 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    筛选
+                </button>
+                <a href="{{ url_for('trades') }}" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 text-center">
+                    清除
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 统计汇总 -->
+<div class="bg-white shadow rounded-lg mb-6">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">筛选结果统计</h3>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <!-- 总数量 -->
+            <div class="bg-gray-50 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">总数量</p>
+                        <p class="text-2xl font-bold text-gray-900">{{ "%.0f"|format(totals.total_quantity) }}</p>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <svg class="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 总实物吨 -->
+            <div class="bg-gray-50 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">总实物吨</p>
+                        <p class="text-2xl font-bold text-gray-900">{{ "%.0f"|format(totals.total_physical_tons) }}</p>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <svg class="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 平均开仓价 -->
+            <div class="bg-indigo-50 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">平均开仓价（加权）</p>
+                        <p class="text-2xl font-bold text-gray-900">{{ "%.2f"|format(avg_entry_price) }}</p>
+                        <p class="text-xs mt-1 {{ 'text-red-600' if entry_discount < 0 else 'text-green-600' }}">
+                            vs SMM{{ smm_month_display }}: {{ "%.2f"|format(entry_discount) }}%
+                        </p>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <svg class="h-8 w-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 平均结算价 -->
+            <div class="bg-blue-50 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">平均结算价（加权）</p>
+                        <p class="text-2xl font-bold text-gray-900">{{ "%.2f"|format(avg_settlement_price) if avg_settlement_price else '-' }}</p>
+                        {% if avg_settlement_price %}
+                        <p class="text-xs mt-1 {{ 'text-red-600' if settlement_discount < 0 else 'text-green-600' }}">
+                            vs SMM{{ smm_month_display }}: {{ "%.2f"|format(settlement_discount) }}%
+                        </p>
+                        {% endif %}
+                    </div>
+                    <div class="flex-shrink-0">
+                        <svg class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMM均价 -->
+            <div class="bg-green-50 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">SMM均价</p>
+                        <p class="text-sm text-gray-400">({{ smm_month_display }})</p>
+                        <p class="text-2xl font-bold text-gray-900">{{ "%.2f"|format(smm_price) }}</p>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <svg class="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 交易列表 -->
+<div class="bg-white shadow rounded-lg overflow-hidden">
+    {% if trades %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('trade_date')">
+                        日期 {{ get_sort_icon('trade_date', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('product_name')">
+                        品种 {{ get_sort_icon('product_name', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('contract')">
+                        合约 {{ get_sort_icon('contract', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('direction')">
+                        方向 {{ get_sort_icon('direction', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('quantity')">
+                        数量 {{ get_sort_icon('quantity', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('physical_tons')">
+                        实物吨 {{ get_sort_icon('physical_tons', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('related_po')">
+                        关联PO {{ get_sort_icon('related_po', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('entry_price')">
+                        开仓价 {{ get_sort_icon('entry_price', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('supplier')">
+                        供应商 {{ get_sort_icon('supplier', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('settlement_price')">
+                        结算价 {{ get_sort_icon('settlement_price', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('premium')">
+                        贴水 {{ get_sort_icon('premium', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('exit_price')">
+                        平仓价 {{ get_sort_icon('exit_price', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('profit_loss')">
+                        盈亏 {{ get_sort_icon('profit_loss', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onclick="sortTable('status')">
+                        状态 {{ get_sort_icon('status', current_order_by, current_order) }}
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">关联采购</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for trade in trades %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.trade_date }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ trade.product_name }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.contract or '-' }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if trade.direction == 'long' %}bg-red-100 text-red-800{% else %}bg-green-100 text-green-800{% endif %}">
+                            {{ trade.direction_name }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.quantity }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ "%.2f"|format(trade.physical_tons) if trade.physical_tons else '-' }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">{{ trade.related_po or '-' }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.entry_price }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">{{ trade.supplier or '-' }}</td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {% if trade.settlement_price %}{{ trade.settlement_price }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {% if trade.premium is not none %}{{ trade.premium }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {% if trade.exit_price %}{{ trade.exit_price }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium {{ get_color_for_value(trade.profit_loss) }}">
+                        {% if trade.status == 'closed' %}{{ format_currency(trade.profit_loss) }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if trade.status == 'open' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ trade.status_name }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button onclick="showRelatedPurchases({{ trade.id }})" class="text-indigo-600 hover:text-indigo-900">
+                            查看采购
+                        </button>
+                    </td>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <a href="{{ url_for('edit_trade', trade_id=trade.id) }}" class="text-indigo-600 hover:text-indigo-900">编辑</a>
+                        {% if trade.status == 'open' %}
+                        <button onclick="openCloseModal({{ trade.id }}, '{{ trade.product_name }} {{ trade.contract or '' }}')" class="text-green-600 hover:text-green-900">平仓</button>
+                        {% endif %}
+                        <form action="{{ url_for('delete_trade', trade_id=trade.id) }}" method="POST" class="inline" onsubmit="return confirm('确定要删除这条交易记录吗？');">
+                            <button type="submit" class="text-red-600 hover:text-red-900">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="px-4 py-12 text-center">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">暂无交易记录</h3>
+        <p class="mt-1 text-sm text-gray-500">开始记录您的第一笔交易吧</p>
+        <div class="mt-6">
+            <a href="{{ url_for('new_trade') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                添加交易记录
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 平仓模态框 -->
+<div id="closeModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden" x-data="{ open: false }">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900">平仓操作</h3>
+            <p class="text-sm text-gray-500 mt-2" id="closeModalTradeInfo"></p>
+            <form action="" method="POST" id="closeForm" class="mt-4 space-y-4">
+                <input type="hidden" name="trade_id" id="closeTradeId">
+                <div>
+                    <label for="exit_price" class="block text-sm font-medium text-gray-700">平仓价格</label>
+                    <input type="number" step="0.01" name="exit_price" id="exit_price" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="exit_date" class="block text-sm font-medium text-gray-700">平仓日期</label>
+                    <input type="date" name="exit_date" id="exit_date" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeCloseModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">确认平仓</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 关联采购模态框 -->
+<div id="purchasesModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-5xl shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">管理关联的实物记录</h3>
+            <button onclick="closePurchasesModal()" class="text-gray-400 hover:text-gray-500">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- 添加关联区域 -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+            <h4 class="text-sm font-medium text-gray-700 mb-2">添加新的关联</h4>
+            <div class="flex gap-2">
+                <select id="availablePurchases" class="flex-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">选择采购订单...</option>
+                </select>
+                <button onclick="addPurchaseRelation()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    关联
+                </button>
+            </div>
+        </div>
+
+        <!-- 已关联的采购记录 -->
+        <div id="purchasesContent">
+            <p class="text-center text-gray-500 py-4">加载中...</p>
+        </div>
+
+        <div class="flex justify-end mt-4 pt-4 border-t">
+            <button onclick="closePurchasesModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentTradeId = null;
+
+function openCloseModal(tradeId, tradeInfo) {
+    document.getElementById('closeTradeId').value = tradeId;
+    document.getElementById('closeModalTradeInfo').textContent = tradeInfo;
+    document.getElementById('closeForm').action = '/trades/' + tradeId + '/close';
+    document.getElementById('closeModal').classList.remove('hidden');
+    document.getElementById('exit_date').value = new Date().toISOString().split('T')[0];
+}
+
+function closeCloseModal() {
+    document.getElementById('closeModal').classList.add('hidden');
+}
+
+function showRelatedPurchases(tradeId) {
+    currentTradeId = tradeId;
+    document.getElementById('purchasesModal').classList.remove('hidden');
+    document.getElementById('purchasesContent').innerHTML = '<p class="text-center text-gray-500 py-4">加载中...</p>';
+
+    // 同时获取关联的采购记录和所有可用的采购订单
+    Promise.all([
+        fetch(`/api/trades/${tradeId}/purchases`).then(r => r.json()),
+        fetch('/api/purchases/list').then(r => r.json())
+    ])
+    .then(([relatedData, allData]) => {
+        // 更新可用采购订单下拉列表
+        const select = document.getElementById('availablePurchases');
+        select.innerHTML = '<option value="">选择采购订单...</option>';
+
+        const relatedIds = new Set(relatedData.purchases.map(p => p.id));
+
+        if (allData.purchases && allData.purchases.length > 0) {
+            allData.purchases.forEach(p => {
+                if (!relatedIds.has(p.id)) {
+                    const option = document.createElement('option');
+                    option.value = p.id;
+                    option.textContent = `${p.purchase_date} - ${p.supplier || '未知供应商'} - ${p.product_name} - ${p.po_number || '无PO号'} (${p.quantity}吨)`;
+                    select.appendChild(option);
+                }
+            });
+        }
+
+        // 显示已关联的采购记录
+        if (relatedData.purchases && relatedData.purchases.length > 0) {
+            let html = `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">采购日期</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">供应商</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">PO号</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">数量</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">单价</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">贴水</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">总金额</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+            relatedData.purchases.forEach(p => {
+                html += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 text-sm text-gray-900">${p.purchase_date}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">${p.supplier || '-'}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">${p.po_number || '-'}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">${p.quantity.toFixed(2)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">${p.unit_price ? '¥' + p.unit_price.toFixed(2) : '-'}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">${p.premium ? '¥' + p.premium.toFixed(2) : '-'}</td>
+                        <td class="px-4 py-2 text-sm text-gray-900">¥${p.total_amount.toFixed(2)}</td>
+                        <td class="px-4 py-2 text-sm">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${p.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                                ${p.status === 'pending' ? '未交货' : '已交货'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2 text-sm">
+                            <button onclick="removePurchaseRelation(${p.id})" class="text-red-600 hover:text-red-900 text-xs">
+                                取消关联
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            html += `
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('purchasesContent').innerHTML = html;
+        } else {
+            document.getElementById('purchasesContent').innerHTML = '<p class="text-center text-gray-500 py-4">暂无关联的采购记录，请从上方选择要关联的采购订单</p>';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('purchasesContent').innerHTML = '<p class="text-center text-red-500 py-4">加载失败</p>';
+    });
+}
+
+function addPurchaseRelation() {
+    const purchaseId = document.getElementById('availablePurchases').value;
+    if (!purchaseId) {
+        alert('请选择要关联的采购订单');
+        return;
+    }
+
+    fetch(`/api/trades/${currentTradeId}/purchases/add`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ purchase_id: parseInt(purchaseId) })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 重新加载关联的采购记录
+            showRelatedPurchases(currentTradeId);
+        } else {
+            alert('关联失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('关联失败，请重试');
+    });
+}
+
+function removePurchaseRelation(purchaseId) {
+    if (!confirm('确定要取消关联这个采购订单吗？')) {
+        return;
+    }
+
+    fetch(`/api/trades/${currentTradeId}/purchases/remove`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ purchase_id: purchaseId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 重新加载关联的采购记录
+            showRelatedPurchases(currentTradeId);
+        } else {
+            alert('取消关联失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('取消关联失败，请重试');
+    });
+}
+
+function closePurchasesModal() {
+    document.getElementById('purchasesModal').classList.add('hidden');
+    currentTradeId = null;
+}
+
+// 排序功能
+function sortTable(column) {
+    // 获取当前的排序参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentOrder = urlParams.get('order') || 'DESC';
+    const currentOrderBy = urlParams.get('order_by') || 'trade_date';
+
+    // 切换排序方向：如果点击的是当前排序列，则反转方向；否则使用降序
+    let newOrder = 'DESC';
+    if (currentOrderBy === column) {
+        newOrder = currentOrder === 'DESC' ? 'ASC' : 'DESC';
+    }
+
+    // 构建新的URL参数
+    urlParams.set('order_by', column);
+    urlParams.set('order', newOrder);
+
+    // 跳转到新的URL
+    window.location.href = '/trades?' + urlParams.toString();
+}
+
+// 点击模态框外部关闭
+document.getElementById('closeModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCloseModal();
+    }
+});
+
+document.getElementById('purchasesModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closePurchasesModal();
+    }
+});
+</script>
+{% endblock %}

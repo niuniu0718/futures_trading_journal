@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if action == 'new' %}新建采购记录 - 期货交易记录系统{% else %}编辑采购记录 - 期货交易记录系统{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="md:flex md:items-center md:justify-between mb-6">
+    <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold text-gray-900">
+            {% if action == 'new' %}新建采购记录{% else %}编辑采购记录{% endif %}
+        </h1>
+    </div>
+    <div class="mt-4 flex md:mt-0 md:ml-4">
+        <a href="{{ url_for('physical_purchases') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            返回列表
+        </a>
+    </div>
+</div>
+
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white shadow rounded-lg">
+    <form action="{% if action == 'new' %}{{ url_for('new_physical_purchase') }}{% else %}{{ url_for('edit_physical_purchase', purchase_id=purchase.id) }}{% endif %}" method="POST" class="p-6 space-y-6">
+        <div class="grid grid-cols-1 gap-6">
+            <!-- 采购日期 -->
+            <div>
+                <label for="purchase_date" class="block text-sm font-medium text-gray-700">采购日期 <span class="text-red-500">*</span></label>
+                <input type="date" name="purchase_date" id="purchase_date" required
+                    value="{% if purchase %}{{ purchase.purchase_date }}{% endif %}"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <!-- 供应商 -->
+            <div>
+                <label for="supplier" class="block text-sm font-medium text-gray-700">供应商</label>
+                <input type="text" name="supplier" id="supplier"
+                    value="{% if purchase %}{{ purchase.supplier }}{% endif %}"
+                    placeholder="请输入供应商名称"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <!-- 品种 -->
+            <div>
+                <label for="product_name" class="block text-sm font-medium text-gray-700">品种 <span class="text-red-500">*</span></label>
+                <input type="text" name="product_name" id="product_name" required
+                    value="{% if purchase %}{{ purchase.product_name }}{% else %}碳酸锂{% endif %}"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <!-- PO号 -->
+            <div>
+                <label for="po_number" class="block text-sm font-medium text-gray-700">采购订单号（PO号）</label>
+                <input type="text" name="po_number" id="po_number"
+                    value="{% if purchase %}{{ purchase.po_number }}{% endif %}"
+                    placeholder="请输入PO号"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <!-- 数量和单价 -->
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label for="quantity" class="block text-sm font-medium text-gray-700">数量（吨） <span class="text-red-500">*</span></label>
+                    <input type="number" name="quantity" id="quantity" required step="0.01" min="0"
+                        value="{% if purchase %}{{ purchase.quantity }}{% endif %}"
+                        placeholder="0.00"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="unit_price" class="block text-sm font-medium text-gray-700">单价（元/吨）</label>
+                    <input type="number" name="unit_price" id="unit_price" step="0.01" min="0"
+                        value="{% if purchase and purchase.unit_price %}{{ purchase.unit_price }}{% endif %}"
+                        placeholder="根据期货价格自动计算"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <p class="mt-1 text-xs text-gray-500">留空则根据期货价格+贴水计算</p>
+                </div>
+                <div>
+                    <label for="premium" class="block text-sm font-medium text-gray-700">贴水（元/吨）</label>
+                    <input type="number" name="premium" id="premium" step="0.01"
+                        value="{% if purchase and purchase.premium %}{{ purchase.premium }}{% endif %}"
+                        placeholder="0.00"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+            </div>
+
+            <!-- 交货日期 -->
+            <div>
+                <label for="delivery_date" class="block text-sm font-medium text-gray-700">预计交货日期</label>
+                <input type="date" name="delivery_date" id="delivery_date"
+                    value="{% if purchase %}{{ purchase.delivery_date }}{% endif %}"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <!-- 关联期货交易 -->
+            <div>
+                <label for="related_trade_ids" class="block text-sm font-medium text-gray-700">关联期货交易（可多选）</label>
+                <select name="related_trade_ids" id="related_trade_ids" multiple size="5" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    {% for trade in trades %}
+                    <option value="{{ trade.id }}"
+                        {% if purchase and related_trade_ids and trade.id in related_trade_ids %}selected{% endif %}>
+                        {{ trade.trade_date }} - {{ trade.product_name }} - {{ trade.direction_name }} - {{ trade.entry_price }} - {{ trade.quantity }}手
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="mt-1 text-xs text-gray-500">按住 Ctrl/Cmd 可多选与此采购关联的期货保值交易</p>
+            </div>
+
+            <!-- 状态 -->
+            <div>
+                <label for="status" class="block text-sm font-medium text-gray-700">状态</label>
+                <select name="status" id="status" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="pending" {% if not purchase or purchase.status == 'pending' %}selected{% endif %}>未交货</option>
+                    <option value="completed" {% if purchase and purchase.status == 'completed' %}selected{% endif %}>已交货</option>
+                </select>
+            </div>
+
+            <!-- 备注 -->
+            <div>
+                <label for="notes" class="block text-sm font-medium text-gray-700">备注</label>
+                <textarea name="notes" id="notes" rows="3"
+                    placeholder="请输入备注信息"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">{% if purchase %}{{ purchase.notes }}{% endif %}</textarea>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <a href="{{ url_for('physical_purchases') }}" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                取消
+            </a>
+            <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                {% if action == 'new' %}创建采购记录{% else %}更新采购记录{% endif %}
+            </button>
+        </div>
+    </form>
+    </div>
+</div>
+
+<script>
+// 自动计算总金额
+document.addEventListener('DOMContentLoaded', function() {
+    const quantityInput = document.getElementById('quantity');
+    const unitPriceInput = document.getElementById('unit_price');
+
+    function calculateTotal() {
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const unitPrice = parseFloat(unitPriceInput.value) || 0;
+        const total = quantity * unitPrice;
+
+        // 可以在这里显示总金额，如果需要的话
+        console.log('总金额:', total);
+    }
+
+    quantityInput.addEventListener('input', calculateTotal);
+    unitPriceInput.addEventListener('input', calculateTotal);
+});
+</script>
+{% endblock %}

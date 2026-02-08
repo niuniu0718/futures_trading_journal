@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}{% if trade %}编辑交易{% else %}新建交易{% endif %} - 期货交易记录系统{% endblock %}
+
+{% block content %}
+<div class="md:flex md:items-center md:justify-between mb-6">
+    <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold text-gray-900">{% if trade %}编辑交易{% else %}新建交易{% endif %}</h1>
+        {% if not trade %}
+        <p class="mt-1 text-sm text-gray-500">快速记录开仓信息，其他选项可稍后补充</p>
+        {% endif %}
+    </div>
+    <div class="mt-4 flex md:mt-0 md:ml-4 space-x-2">
+        {% if not trade %}
+        <button type="button" onclick="toggleAdvanced()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            <span id="advancedBtnText">显示高级选项</span>
+        </button>
+        {% endif %}
+        <a href="{{ url_for('trades') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            返回列表
+        </a>
+    </div>
+</div>
+
+<div class="bg-white shadow rounded-lg">
+    <form action="{% if trade %}{{ url_for('edit_trade', trade_id=trade.id) }}{% else %}{{ url_for('new_trade') }}{% endif %}" method="POST" class="space-y-6">
+        <div class="px-4 py-5 sm:p-6">
+            <!-- 基础信息 -->
+            <div class="mb-8">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">开仓信息</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="trade_date" class="block text-sm font-medium text-gray-700">交易日期 <span class="text-red-500">*</span></label>
+                        <input type="date" name="trade_date" id="trade_date" required value="{% if trade %}{{ trade.trade_date }}{% else %}{{ '' }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="contract" class="block text-sm font-medium text-gray-700">合约代码 <span class="text-red-500">*</span></label>
+                        <input type="text" name="contract" id="contract" required value="{% if trade and trade.contract %}{{ trade.contract }}{% endif %}" placeholder="如: LC2405" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="direction" class="block text-sm font-medium text-gray-700">方向 <span class="text-red-500">*</span></label>
+                        <select name="direction" id="direction" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                            {% for key, value in directions.items() %}
+                            <option value="{{ key }}" {% if trade and trade.direction == key %}selected{% elif not trade and key == 'long' %}selected{% endif %}>{{ value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="quantity" class="block text-sm font-medium text-gray-700">数量(手) <span class="text-red-500">*</span></label>
+                        <input type="number" step="1" name="quantity" id="quantity" required value="{% if trade %}{{ trade.quantity }}{% endif %}" placeholder="1" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="physical_tons" class="block text-sm font-medium text-gray-700">实物吨</label>
+                        <input type="number" step="1" name="physical_tons" id="physical_tons" value="{% if trade and trade.physical_tons %}{{ trade.physical_tons }}{% endif %}" placeholder="自动计算" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <p class="mt-1 text-xs text-gray-500">自动计算: 数量 × 1.13（可自行修改）</p>
+                    </div>
+
+                    <div>
+                        <label for="related_po" class="block text-sm font-medium text-gray-700">关联PO</label>
+                        <input type="text" name="related_po" id="related_po" value="{% if trade and trade.related_po %}{{ trade.related_po }}{% endif %}" placeholder="选填" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="product_name" class="block text-sm font-medium text-gray-700">品种 <span class="text-red-500">*</span></label>
+                        <input type="text" name="product_name" id="product_name" list="products_list" required value="{% if trade %}{{ trade.product_name }}{% endif %}" placeholder="选择或输入品种" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <datalist id="products_list">
+                            {% for product in products %}
+                            <option value="{{ product }}">{{ product }}</option>
+                            {% endfor %}
+                        </datalist>
+                        <p class="mt-1 text-xs text-gray-500">可从列表选择或输入新品种</p>
+                    </div>
+
+                    <div>
+                        <label for="entry_price" class="block text-sm font-medium text-gray-700">开仓价格 <span class="text-red-500">*</span></label>
+                        <input type="number" step="0.01" name="entry_price" id="entry_price" required value="{% if trade %}{{ trade.entry_price }}{% endif %}" placeholder="125000" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="supplier" class="block text-sm font-medium text-gray-700">供应商</label>
+                        <input type="text" name="supplier" id="supplier" value="{% if trade and trade.supplier %}{{ trade.supplier }}{% endif %}" placeholder="选填" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div id="settlementPriceDiv" style="{% if not trade or not trade.supplier %}display: none;{% endif %}">
+                        <label for="settlement_price" class="block text-sm font-medium text-gray-700">结算价格</label>
+                        <input type="number" step="0.01" name="settlement_price" id="settlement_price" value="{% if trade and trade.settlement_price %}{{ trade.settlement_price }}{% endif %}" placeholder="供应商点价时填写" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+
+                    <div id="premiumDiv" style="{% if not trade or not trade.supplier %}display: none;{% endif %}">
+                        <label for="premium" class="block text-sm font-medium text-gray-700">贴水</label>
+                        <input type="number" step="0.01" name="premium" id="premium" value="{% if trade and trade.premium %}{{ trade.premium }}{% endif %}" placeholder="正数或负数" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 隐藏字段：交易所默认值 -->
+            <input type="hidden" name="exchange" id="exchange" value="{% if trade %}{{ trade.exchange }}{% else %}gfex{% endif %}">
+
+            <!-- 高级选项（默认隐藏） -->
+            <div id="advancedOptions" style="{% if not trade %}display: none;{% endif %}">
+                <div class="mb-8 border-t border-gray-200 pt-6">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">高级选项</h3>
+
+                    <!-- 手续费 -->
+                    <div class="mb-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label for="fee" class="block text-sm font-medium text-gray-700">手续费</label>
+                                <input type="number" step="0.01" name="fee" id="fee" value="{% if trade and trade.fee %}{{ trade.fee }}{% endif %}" placeholder="0" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div></div>
+                            <div></div>
+                        </div>
+                    </div>
+
+                    <!-- 平仓信息（仅在编辑时显示）-->
+                    {% if trade %}
+                    <div class="mb-6 border-t border-gray-200 pt-6">
+                        <h4 class="text-md font-medium text-gray-900 mb-4">平仓信息</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="exit_price" class="block text-sm font-medium text-gray-700">平仓价格</label>
+                                <input type="number" step="0.01" name="exit_price" id="exit_price" value="{% if trade and trade.exit_price %}{{ trade.exit_price }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <p class="mt-1 text-xs text-gray-500">填写后自动平仓并计算盈亏</p>
+                            </div>
+                            <div>
+                                <label for="exit_date" class="block text-sm font-medium text-gray-700">平仓日期</label>
+                                <input type="date" name="exit_date" id="exit_date" value="{% if trade and trade.exit_date %}{{ trade.exit_date }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 技术指标 -->
+                    <div class="mb-6 border-t border-gray-200 pt-6">
+                        <h4 class="text-md font-medium text-gray-900 mb-4">技术指标（可选）</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+                            <div>
+                                <label for="ma5" class="block text-sm font-medium text-gray-700">MA5</label>
+                                <input type="number" step="0.01" name="ma5" id="ma5" value="{% if trade and trade.ma5 %}{{ trade.ma5 }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label for="ma10" class="block text-sm font-medium text-gray-700">MA10</label>
+                                <input type="number" step="0.01" name="ma10" id="ma10" value="{% if trade and trade.ma10 %}{{ trade.ma10 }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label for="ma20" class="block text-sm font-medium text-gray-700">MA20</label>
+                                <input type="number" step="0.01" name="ma20" id="ma20" value="{% if trade and trade.ma20 %}{{ trade.ma20 }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label for="rsi" class="block text-sm font-medium text-gray-700">RSI</label>
+                                <input type="number" step="0.01" name="rsi" id="rsi" value="{% if trade and trade.rsi %}{{ trade.rsi }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label for="macd" class="block text-sm font-medium text-gray-700">MACD</label>
+                                <input type="number" step="0.01" name="macd" id="macd" value="{% if trade and trade.macd %}{{ trade.macd }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 市场分析 -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h4 class="text-md font-medium text-gray-900 mb-4">市场分析（可选）</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="market_trend" class="block text-sm font-medium text-gray-700">市场走势</label>
+                                <select name="market_trend" id="market_trend" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                    <option value="">请选择</option>
+                                    {% for key, value in trends.items() %}
+                                    <option value="{{ key }}" {% if trade and trade.market_trend == key %}selected{% endif %}>{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="entry_reason" class="block text-sm font-medium text-gray-700">入场理由</label>
+                                <input type="text" name="entry_reason" id="entry_reason" value="{% if trade and trade.entry_reason %}{{ trade.entry_reason }}{% endif %}" placeholder="如: 突破前高、MA金叉等" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="notes" class="block text-sm font-medium text-gray-700">交易日志/备注</label>
+                                <textarea name="notes" id="notes" rows="3" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">{% if trade and trade.notes %}{{ trade.notes }}{% endif %}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
+            <a href="{{ url_for('trades') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 mr-3">
+                取消
+            </a>
+            <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                {% if trade %}更新{% else %}创建交易{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function toggleAdvanced() {
+    const advanced = document.getElementById('advancedOptions');
+    const btnText = document.getElementById('advancedBtnText');
+    if (advanced.style.display === 'none') {
+        advanced.style.display = 'block';
+        btnText.textContent = '隐藏高级选项';
+    } else {
+        advanced.style.display = 'none';
+        btnText.textContent = '显示高级选项';
+    }
+}
+
+// 供应商字段变化时显示/隐藏结算价格和贴水
+function handleSupplierChange() {
+    const supplier = document.getElementById('supplier');
+    const settlementDiv = document.getElementById('settlementPriceDiv');
+    const premiumDiv = document.getElementById('premiumDiv');
+    const entryPriceInput = document.getElementById('entry_price');
+    const settlementPriceInput = document.getElementById('settlement_price');
+    const premiumInput = document.getElementById('premium');
+
+    if (supplier.value.trim() !== '') {
+        settlementDiv.style.display = 'block';
+        premiumDiv.style.display = 'block';
+
+        // 如果填写了供应商，默认：开仓价=结算价，贴水=0
+        if (entryPriceInput.value && !settlementPriceInput.value) {
+            settlementPriceInput.value = entryPriceInput.value;
+        }
+        if (!premiumInput.value || premiumInput.value === '0') {
+            premiumInput.value = '0';
+        }
+    } else {
+        settlementDiv.style.display = 'none';
+        premiumDiv.style.display = 'none';
+    }
+}
+
+// 监听结算价格变化，自动计算贴水
+function handleSettlementPriceChange() {
+    const entryPriceInput = document.getElementById('entry_price');
+    const settlementPriceInput = document.getElementById('settlement_price');
+    const premiumInput = document('premium');
+
+    const entryPrice = parseFloat(entryPriceInput.value) || 0;
+    const settlementPrice = parseFloat(settlementPriceInput.value) || 0;
+
+    if (entryPrice && settlementPrice) {
+        // 默认贴水 = 结算价 - 开仓价
+        const premium = settlementPrice - entryPrice;
+        premiumInput.value = premium.toFixed(2);
+    }
+}
+
+// 监听贴水变化，自动计算结算价
+function handlePremiumChange() {
+    const entryPriceInput = document.getElementById('entry_price');
+    const settlementPriceInput = document.getElementById('settlement_price');
+    const premiumInput = document.getElementById('premium');
+
+    const entryPrice = parseFloat(entryPriceInput.value) || 0;
+    const premium = parseFloat(premiumInput.value) || 0;
+
+    if (entryPrice && premium) {
+        // 默认结算价 = 开仓价 + 贴水
+        const settlementPrice = entryPrice + premium;
+        settlementPriceInput.value = settlementPrice.toFixed(2);
+    }
+}
+
+// 数量变化时计算实物吨
+function calculatePhysicalTons() {
+    const quantity = parseFloat(document.getElementById('quantity').value) || 0;
+    const physicalTons = Math.round(quantity * 1.13);
+    document.getElementById('physical_tons').value = physicalTons;
+}
+
+// 实物吨变化时计算数量
+function calculateQuantity() {
+    const physicalTons = parseFloat(document.getElementById('physical_tons').value) || 0;
+    const quantity = Math.round(physicalTons / 1.13);
+    document.getElementById('quantity').value = quantity;
+}
+
+// 设置今天的日期为默认值
+document.addEventListener('DOMContentLoaded', function() {
+    const tradeDateInput = document.getElementById('trade_date');
+    if (!tradeDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        tradeDateInput.value = today;
+    }
+
+    // 监听供应商字段变化
+    const supplierInput = document.getElementById('supplier');
+    if (supplierInput) {
+        supplierInput.addEventListener('input', handleSupplierChange);
+        supplierInput.addEventListener('change', handleSupplierChange);
+    }
+
+    // 监听结算价和贴水变化
+    const settlementPriceInput = document.getElementById('settlement_price');
+    const premiumInput = document.getElementById('premium');
+
+    if (settlementPriceInput) {
+        settlementPriceInput.addEventListener('input', handleSettlementPriceChange);
+        settlementPriceInput.addEventListener('change', handleSettlementPriceChange);
+    }
+
+    if (premiumInput) {
+        premiumInput.addEventListener('input', handlePremiumChange);
+        premiumInput.addEventListener('change', handlePremiumChange);
+    }
+
+    // 监听数量和实物吨字段变化，双向计算
+    const quantityInput = document.getElementById('quantity');
+    const physicalTonsInput = document.getElementById('physical_tons');
+
+    if (quantityInput) {
+        quantityInput.addEventListener('input', calculatePhysicalTons);
+        quantityInput.addEventListener('change', calculatePhysicalTons);
+    }
+
+    if (physicalTonsInput) {
+        physicalTonsInput.addEventListener('input', calculateQuantity);
+        physicalTonsInput.addEventListener('change', calculateQuantity);
+    }
+
+    // 初始化时计算一次（如果实物吨为空）
+    if (quantityInput && physicalTonsInput && (!physicalTonsInput.value || physicalTonsInput.value === '0')) {
+        calculatePhysicalTons();
+    }
+});
+</script>
+{% endblock %}

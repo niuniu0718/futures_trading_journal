@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - 期货交易记录系统{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">交易仪表盘</h1>
+    <p class="mt-2 text-gray-600">欢迎回来！这是您的交易概况。</p>
+</div>
+
+<!-- 时间筛选器 -->
+<div class="bg-white shadow rounded-lg mb-6">
+    <div class="px-4 py-4 sm:p-6">
+        <div class="mb-3">
+            <h3 class="text-sm font-medium text-gray-700">筛选交易记录时间范围</h3>
+            <p class="text-xs text-gray-500">筛选查看指定时间段的交易数据（不影响SMM均价选择）</p>
+        </div>
+        <div class="flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <label for="start_date" class="block text-sm font-medium text-gray-700">开始日期</label>
+                <input type="date" id="start_date" value="{% if current_start_date %}{{ current_start_date }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="end_date" class="block text-sm font-medium text-gray-700">结束日期</label>
+                <input type="date" id="end_date" value="{% if current_end_date %}{{ current_end_date }}{% endif %}" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="applyFilters()" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    筛选
+                </button>
+                <a href="{{ url_for('index') }}" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    清除
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-4 md:gap-6 lg:gap-8 mb-8">
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">平均开仓价</dt>
+                        <dd class="text-lg font-semibold text-gray-900">{{ "%.2f"|format(avg_entry_price) }}</dd>
+                        <dd class="text-xs mt-1 {{ 'text-red-600' if entry_discount < 0 else 'text-green-600' }}">
+                            vs SMM{{ smm_month_display }}: {{ "%.2f"|format(entry_discount) }}%
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">平均结算价</dt>
+                        <dd class="text-lg font-semibold text-gray-900">{{ "%.2f"|format(avg_settlement_price) if avg_settlement_price else '-' }}</dd>
+                        {% if avg_settlement_price %}
+                        <dd class="text-xs mt-1 {{ 'text-red-600' if settlement_discount < 0 else 'text-green-600' }}">
+                            vs SMM{{ smm_month_display }}: {{ "%.2f"|format(settlement_discount) }}%
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center flex-1">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 truncate">
+                                SMM均价
+                                <span class="text-xs text-gray-400">({{ smm_month_display }})</span>
+                            </dt>
+                            <dd class="text-lg font-semibold text-gray-900">{{ "%.2f"|format(smm_price) }}</dd>
+                        </dl>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <select id="monthSelect" onchange="applyFilters()" class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-2 px-3">
+                        <option value="">选择月份</option>
+                        {% for month in available_months %}
+                        <option value="{{ month }}" {% if smm_month == month %}selected{% endif %}>{{ month }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">筛选范围交易数</dt>
+                        <dd class="text-lg font-semibold text-gray-900">{{ total_trades_count }}</dd>
+                        <dd class="text-xs text-gray-500 mt-1">已平仓: {{ closed_trades_count }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4 md:gap-6 lg:gap-8 mb-8">
+    <!-- 价格对比图 -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">价格对比分析</h3>
+            <canvas id="priceCompareChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- 折扣对比图 -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">折扣对比分析 (vs SMM)</h3>
+            <canvas id="discountCompareChart" height="250"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 最近交易记录 -->
+<div class="bg-white shadow rounded-lg">
+    <div class="px-4 py-5 sm:px-6">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">最近交易</h3>
+            <a href="{{ url_for('trades') }}" class="text-sm text-indigo-600 hover:text-indigo-900">查看全部 &rarr;</a>
+        </div>
+    </div>
+    <div class="border-t border-gray-200">
+        {% if recent_trades %}
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">品种</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">合约</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">方向</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开仓价</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">盈亏</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for trade in recent_trades %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.trade_date }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.product_name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.contract }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if trade.direction == 'long' %}bg-red-100 text-red-800{% else %}bg-green-100 text-green-800{% endif %}">
+                            {{ trade.direction_name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ trade.entry_price }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm {{ get_color_for_value(trade.profit_loss) }}">
+                        {% if trade.status == 'closed' %}{{ format_currency(trade.profit_loss) }}{% else %}-{% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if trade.status == 'open' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ trade.status_name }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-4 py-5 text-center text-gray-500">
+            <p>暂无交易记录</p>
+            <a href="{{ url_for('new_trade') }}" class="mt-2 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                添加第一笔交易
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartDates = {{ chart_dates | tojson }};
+    const chartEntryPrices = {{ chart_entry_prices | tojson }};
+    const chartSettlementPrices = {{ chart_settlement_prices | tojson }};
+    const chartSmmPrices = {{ chart_smm_prices | tojson }};
+    const chartEntryDiscounts = {{ chart_entry_discounts | tojson }};
+    const chartSettlementDiscounts = {{ chart_settlement_discounts | tojson }};
+
+    // 1. 价格对比图（开仓价、结算价、SMM价）
+    const priceCompareCtx = document.getElementById('priceCompareChart');
+    if (priceCompareCtx) {
+        new Chart(priceCompareCtx, {
+            type: 'line',
+            data: {
+                labels: chartDates,
+                datasets: [
+                    {
+                        label: '开仓价',
+                        data: chartEntryPrices,
+                        borderColor: 'rgb(79, 70, 229)',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        fill: false,
+                        tension: 0.4,
+                        borderWidth: 2
+                    },
+                    {
+                        label: '结算价',
+                        data: chartSettlementPrices,
+                        borderColor: 'rgb(249, 115, 22)',
+                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        fill: false,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        spanGaps: true
+                    },
+                    {
+                        label: 'SMM价格',
+                        data: chartSmmPrices,
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        fill: false,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        borderDash: [5, 5]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: '价格 (元/吨)'
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            }
+        });
+    }
+
+    // 2. 折扣对比图
+    const discountCompareCtx = document.getElementById('discountCompareChart');
+    if (discountCompareCtx) {
+        new Chart(discountCompareCtx, {
+            type: 'bar',
+            data: {
+                labels: chartDates,
+                datasets: [
+                    {
+                        label: '开仓价折扣 (%)',
+                        data: chartEntryDiscounts,
+                        backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                        borderColor: 'rgb(79, 70, 229)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '结算价折扣 (%)',
+                        data: chartSettlementDiscounts,
+                        backgroundColor: 'rgba(249, 115, 22, 0.6)',
+                        borderColor: 'rgb(249, 115, 22)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    y: {
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+
+<script>
+function applyFilters() {
+    // 应用筛选（月份选择 + 时间筛选）
+    const month = document.getElementById('monthSelect') ? document.getElementById('monthSelect').value : '';
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
+
+    // 构建URL参数
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+
+    // 添加时间戳参数强制刷新
+    params.append('_t', Date.now());
+
+    // 生成URL
+    let url = '/';
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+
+    window.location.href = url;
+}
+</script>
+{% endblock %}
