@@ -18,7 +18,17 @@
       "Bash(kill:*)",
       "Bash(chmod:*)",
       "Bash(./package.sh:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(sqlite3:*)",
+      "Bash(xargs kill:*)",
+      "Bash(pkill:*)",
+      "Bash(git checkout:*)",
+      "Bash(find:*)",
+      "Bash(awk:*)",
+      "Bash(git add:*)"
     ]
   }
 }

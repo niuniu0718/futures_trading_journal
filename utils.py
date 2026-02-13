@@ -103,3 +103,31 @@ def get_color_for_value(value: float) -> str:
         return "text-red-600"
     else:
         return "text-gray-600"
+
+
+def export_selected_trades_to_csv(trades):
+    """导出选中的交易记录到CSV文件"""
+    filename = f"trades_export_selected_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filepath = os.path.join(EXPORTS_DIR, filename)
+
+    with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            'ID', '交易日期', '交易所', '品种', '合约', '方向', '开仓价',
+            '数量', '实物吨', '关联PO', '供应商', '结算价', '贴水',
+            '止损价', '止盈价', '平仓价', '平仓日期', '手续费',
+            '盈亏', '状态', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD',
+            '入场理由', '市场走势', '备注', '创建时间', '更新时间'
+        ])
+        for trade in trades:
+            writer.writerow([
+                trade.id, trade.trade_date, trade.exchange, trade.product_name,
+                trade.contract, trade.direction, trade.entry_price, trade.quantity,
+                trade.physical_tons, trade.related_po, trade.supplier,
+                trade.settlement_price, trade.premium, trade.stop_loss, trade.take_profit,
+                trade.exit_price, trade.exit_date, trade.fee, trade.profit_loss,
+                trade.status, trade.ma5, trade.ma10, trade.ma20, trade.rsi, trade.macd,
+                trade.entry_reason, trade.market_trend, trade.notes,
+                trade.created_at, trade.updated_at
+            ])
+    return filepath

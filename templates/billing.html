@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block title %}账务管理 - 期货交易记录系统{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">账务管理</h1>
+        <p class="mt-2 text-gray-600">核销有供应商和结算价的订单</p>
+    </div>
+</div>
+
+<!-- 汇总统计卡片 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-5">
+        <div class="text-sm font-medium text-gray-500">核销数量</div>
+        <div class="mt-2 text-3xl font-bold text-gray-900">{{ summary.count }}</div>
+        <div class="mt-1 text-xs text-gray-500">单</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-5">
+        <div class="text-sm font-medium text-gray-500">总数量</div>
+        <div class="mt-2 text-3xl font-bold text-gray-900">{{ "%.2f"|format(summary.total_quantity) }}</div>
+        <div class="mt-1 text-xs text-gray-500">吨</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-5">
+        <div class="text-sm font-medium text-gray-500">实物吨总计</div>
+        <div class="mt-2 text-3xl font-bold text-gray-900">{{ "%.2f"|format(summary.total_physical_tons) }}</div>
+        <div class="mt-1 text-xs text-gray-500">吨</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-5">
+        <div class="text-sm font-medium text-gray-500">平均折扣</div>
+        <div class="mt-2 text-3xl font-bold {{ get_color_for_value(summary.avg_discount) }}">
+            {{ "+" if summary.avg_discount > 0 else "" }}{{ "%.2f"|format(summary.avg_discount) }}%
+        </div>
+        <div class="mt-1 text-xs text-gray-500">相对于SMM均价</div>
+    </div>
+</div>
+
+<!-- 筛选栏 -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="get" class="flex flex-wrap gap-4 items-end">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Base月份</label>
+            <select name="month" class="border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="">全部</option>
+                {% for m in base_months %}
+                <option value="{{ m }}" {% if current_month == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+            <select name="supplier" class="border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="">全部</option>
+                {% for s in suppliers %}
+                <option value="{{ s }}" {% if current_supplier == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+            筛选
+        </button>
+        <a href="{{ url_for('billing') }}" class="text-gray-600 px-4 py-2 hover:text-gray-900">重置</a>
+    </form>
+</div>
+
+<!-- 待核销交易 -->
+{% if available_trades %}
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">待核销交易</h2>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">交易日期</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">供应商</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">品种</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">合约</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">数量</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">实物吨</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">结算价</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for trade in available_trades %}
+                <tr>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ trade.trade_date }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ trade.supplier }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ trade.product_name }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ trade.contract }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ "%.2f"|format(trade.quantity) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ "%.2f"|format(trade.physical_tons) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ format_currency(trade.settlement_price) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center">
+                        <button onclick="openBillingModal({{ trade.id }}, '{{ trade.trade_date }}', '{{ trade.supplier }}', {{ trade.settlement_price }}, {{ trade.quantity }}, {{ trade.physical_tons }})"
+                                class="text-indigo-600 hover:text-indigo-900 text-sm font-medium">
+                            核销
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- 已核销记录 -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold text-gray-900 mb-4">已核销记录</h2>
+
+    {% if billings %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">交易日期</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">供应商</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">品种</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">合约</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">数量</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">实物吨</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">结算价均价</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Base价格</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">折扣</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base月份</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">核销月份</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">关联PO</th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for bill in billings %}
+                <tr>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ bill.trade_date }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ bill.supplier }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ bill.product_name }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ bill.contract }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ "%.2f"|format(bill.quantity) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ "%.2f"|format(bill.physical_tons) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ format_currency(bill.settlement_price) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ format_currency(bill.base_price) }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium {{ get_color_for_value(bill.discount) }}">
+                        {{ "+" if bill.discount > 0 else "" }}{{ "%.2f"|format(bill.discount) }}%
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {% if bill.base_month and '-' in bill.base_month %}
+                            {{ bill.base_month.split('-')[0] }}年{{ bill.base_month.split('-')[1]|int }}月
+                        {% else %}
+                            {{ bill.base_month or '-' }}
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {% if bill.billing_month and '-' in bill.billing_month %}
+                            {{ bill.billing_month.split('-')[0] }}年{{ bill.billing_month.split('-')[1]|int }}月
+                        {% else %}
+                            {{ bill.billing_month or '-' }}
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ bill.related_po or '-' }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-center">
+                        <button onclick="editBilling({{ bill.id }}, '{{ bill.billing_month }}', '{{ bill.base_month }}', {{ bill.base_price }}, '{{ bill.related_po or '' }}', '{{ bill.notes or '' }}')"
+                                class="text-indigo-600 hover:text-indigo-900 text-sm font-medium mr-2">
+                            编辑
+                        </button>
+                        <form method="post" action="{{ url_for('delete_billing', billing_id=bill.id) }}"
+                              onsubmit="return confirm('确定要取消这条核销记录吗？');"
+                              class="inline">
+                            <button type="submit" class="text-red-600 hover:text-red-900 text-sm font-medium">
+                                取消核销
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-8 text-gray-500">
+        暂无核销记录
+    </div>
+    {% endif %}
+</div>
+
+<!-- 核销弹窗 -->
+<div id="billingModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">核销订单</h3>
+        </div>
+        <form method="post" action="{{ url_for('create_billing') }}" class="px-6 py-4">
+            <input type="hidden" id="trade_id" name="trade_id" value="">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+                <input type="text" id="modal_supplier" readonly
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-gray-50">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">结算价</label>
+                <input type="text" id="modal_settlement_price" readonly
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-gray-50">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">数量 / 实物吨</label>
+                <input type="text" id="modal_quantity" readonly
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 bg-gray-50">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Base月份</label>
+                <select id="base_month" name="base_month" required onchange="updateBasePrice()"
+                        class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">请选择月份</option>
+                    {% for m in available_smm_months %}
+                    <option value="{{ m }}">{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Base价格 (SMM均价)</label>
+                <input type="number" step="0.01" id="base_price" name="base_price" required
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">核销月份</label>
+                <input type="month" name="billing_month" required
+                       value="{{ today }}"
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">关联PO</label>
+                <input type="text" name="related_po" placeholder="可选，填写后自动同步到交易记录"
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+                <textarea name="notes" rows="2"
+                          class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeBillingModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    取消
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    确认核销
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">编辑核销记录</h3>
+        </div>
+        <form method="post" class="px-6 py-4">
+            <input type="hidden" id="edit_billing_id" name="billing_id" value="">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">核销月份</label>
+                <input type="month" id="edit_billing_month" name="billing_month" required
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Base月份</label>
+                <select id="edit_base_month" name="base_month" required onchange="updateEditBasePrice()"
+                        class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">请选择月份</option>
+                    {% for m in available_smm_months %}
+                    <option value="{{ m }}">{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Base价格</label>
+                <input type="number" step="0.01" id="edit_base_price" name="base_price" required
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">关联PO</label>
+                <input type="text" id="edit_related_po" name="related_po" placeholder="可选，填写后自动同步到交易记录"
+                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+                <textarea id="edit_notes" name="notes" rows="2"
+                          class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeEditModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    取消
+                </button>
+                <button type="submit" formaction=""
+                        class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    保存
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openBillingModal(tradeId, tradeDate, supplier, settlementPrice, quantity, physicalTons) {
+    document.getElementById('trade_id').value = tradeId;
+    document.getElementById('modal_supplier').value = supplier + ' (' + tradeDate + ')';
+    document.getElementById('modal_settlement_price').value = settlementPrice.toFixed(2);
+    document.getElementById('modal_quantity').value = quantity.toFixed(2) + ' / ' + physicalTons.toFixed(2);
+    document.getElementById('billingModal').classList.remove('hidden');
+    document.getElementById('billingModal').classList.add('flex');
+}
+
+function closeBillingModal() {
+    document.getElementById('billingModal').classList.add('hidden');
+    document.getElementById('billingModal').classList.remove('flex');
+    document.getElementById('base_month').value = '';
+    document.getElementById('base_price').value = '';
+}
+
+function updateBasePrice() {
+    const month = document.getElementById('base_month').value;
+    if (month) {
+        fetch('/api/smm_month_price?month=' + month)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('base_price').value = data.price.toFixed(2);
+                }
+            });
+    }
+}
+
+function editBilling(billingId, billingMonth, baseMonth, basePrice, relatedPo, notes) {
+    document.getElementById('edit_billing_id').value = billingId;
+    document.getElementById('edit_billing_month').value = billingMonth;
+    document.getElementById('edit_base_month').value = baseMonth;
+    document.getElementById('edit_base_price').value = basePrice;
+    document.getElementById('edit_related_po').value = relatedPo;
+    document.getElementById('edit_notes').value = notes;
+
+    // 设置表单action
+    const form = document.querySelector('#editModal form');
+    form.action = '/billing/' + billingId + '/edit';
+
+    document.getElementById('editModal').classList.remove('hidden');
+    document.getElementById('editModal').classList.add('flex');
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+    document.getElementById('editModal').classList.remove('flex');
+}
+
+function updateEditBasePrice() {
+    const month = document.getElementById('edit_base_month').value;
+    if (month) {
+        fetch('/api/smm_month_price?month=' + month)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('edit_base_price').value = data.price.toFixed(2);
+                }
+            });
+    }
+}
+</script>
+{% endblock %}

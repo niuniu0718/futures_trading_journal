@@ -14,8 +14,8 @@ from smm_model import SMMPrice
 from futures_model import FuturesPrice
 from product_model import Product
 from physical_model import PhysicalPurchase, physical_db
-from analyzers import analyzer
-from utils import export_to_csv, import_from_csv, format_currency, format_percentage, get_color_for_value
+from billing_model import billing_db
+from utils import export_to_csv, import_from_csv, format_currency, format_percentage, get_color_for_value, export_selected_trades_to_csv
 from markupsafe import Markup
 
 
@@ -43,6 +43,7 @@ logging.getLogger('werkzeug').disabled = True
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['DEBUG'] = DEBUG
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # 禁用Flask的访问日志
 app.logger.setLevel(logging.CRITICAL)
@@ -56,8 +57,6 @@ log.disabled = True
 @app.route('/')
 def index():
     """首页仪表盘"""
-    analyzer.reload()
-
     # 获取时间筛选参数
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
@@ -118,16 +117,28 @@ def index():
             smm_month_display = "最新（该月无数据）"
             smm_month = None
     else:
-        # 默认使用最新的SMM价格
-        latest_smm = db.get_latest_smm_price()
-        if latest_smm:
-            smm_price = latest_smm.average_price
-            smm_month_display = "最新"
-            smm_month = None
+        # 默认使用当月的SMM均价
+        current_date = datetime.now()
+        current_year = current_date.year
+        current_month = current_date.month
+        current_month_str = f"{current_year}-{current_month:02d}"
+
+        smm_prices = db.get_smm_prices_by_month(current_year, current_month)
+        if smm_prices:
+            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
+            smm_month_display = f"{current_year}年{current_month}月"
+            smm_month = current_month_str
         else:
-            smm_price = SMM_MONTHLY_PRICE
-            smm_month_display = "默认"
-            smm_month = None
+            # 当月没有数据，使用最新价格
+            latest_smm = db.get_latest_smm_price()
+            if latest_smm:
+                smm_price = latest_smm.average_price
+                smm_month_display = "最新（当月无数据）"
+                smm_month = None
+            else:
+                smm_price = SMM_MONTHLY_PRICE
+                smm_month_display = "默认"
+                smm_month = None
 
     # 计算折扣（开仓价 vs SMM均价）
     if avg_entry_price and smm_price:
@@ -238,7 +249,7 @@ def index():
     return response
 
 
-@app.route('/trades')
+@app.route('/trades', methods=['GET', 'POST'])
 def trades():
     """交易列表"""
     status_filter = request.args.get('status')
@@ -306,15 +317,28 @@ def trades():
             smm_month_display = "最新（该月无数据）"
             smm_month = None
     else:
-        latest_smm = db.get_latest_smm_price()
-        if latest_smm:
-            smm_price = latest_smm.average_price
-            smm_month_display = "最新"
-            smm_month = None
+        # 默认使用当月的SMM均价
+        current_date = datetime.now()
+        current_year = current_date.year
+        current_month = current_date.month
+        current_month_str = f"{current_year}-{current_month:02d}"
+
+        smm_prices = db.get_smm_prices_by_month(current_year, current_month)
+        if smm_prices:
+            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
+            smm_month_display = f"{current_year}年{current_month}月"
+            smm_month = current_month_str
         else:
-            smm_price = SMM_MONTHLY_PRICE
-            smm_month_display = "默认"
-            smm_month = None
+            # 当月没有数据，使用最新价格
+            latest_smm = db.get_latest_smm_price()
+            if latest_smm:
+                smm_price = latest_smm.average_price
+                smm_month_display = "最新（当月无数据）"
+                smm_month = None
+            else:
+                smm_price = SMM_MONTHLY_PRICE
+                smm_month_display = "默认"
+                smm_month = None
 
     # 计算折扣（开仓价 vs SMM均价）
     if avg_entry_price and smm_price:
@@ -541,33 +565,139 @@ def close_trade(trade_id):
     return redirect(url_for('trades'))
 
 
-@app.route('/statistics')
-def statistics():
-    """统计分析页面"""
-    analyzer.reload()
+@app.route('/billing')
+def billing():
+    """账务管理页面"""
+    month_filter = request.args.get('month')
+    supplier_filter = request.args.get('supplier')
 
-    # 获取基础统计
-    stats = db.get_statistics()
+    # 获取所有核销记录
+    all_billings = billing_db.get_all_billings(
+        month_filter=month_filter,
+        supplier_filter=supplier_filter
+    )
 
-    # 获取分析数据
-    monthly_stats = analyzer.get_monthly_stats()
-    product_performance = analyzer.get_product_performance()
-    win_rate_trend = analyzer.get_win_rate_trend()
-    price_trend = analyzer.get_price_trend()
-    risk_metrics = analyzer.get_risk_metrics()
-    direction_stats = analyzer.get_direction_stats()
+    # 获取可用交易（有供应商和结算价但未核销的）
+    available_trades = billing_db.get_available_trades()
 
-    return render_template('statistics.html',
-                          stats=stats,
-                          monthly_stats=monthly_stats,
-                          product_performance=product_performance,
-                          win_rate_trend=win_rate_trend,
-                          price_trend=price_trend,
-                          risk_metrics=risk_metrics,
-                          direction_stats=direction_stats,
+    # 获取筛选选项
+    suppliers = billing_db.get_distinct_suppliers()
+    base_months = billing_db.get_distinct_base_months()
+
+    # 获取可用的SMM月份（用于下拉选择）
+    available_smm_months = db.get_available_smm_months()
+
+    # 计算汇总统计
+    summary = billing_db.get_billing_summary(
+        month_filter=month_filter,
+        supplier_filter=supplier_filter
+    )
+
+    # 当前日期
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    return render_template('billing.html',
+                          billings=all_billings,
+                          available_trades=available_trades,
+                          suppliers=suppliers,
+                          base_months=base_months,
+                          available_smm_months=available_smm_months,
+                          current_month=month_filter,
+                          current_supplier=supplier_filter,
+                          summary=summary,
+                          today=today,
                           format_currency=format_currency,
                           format_percentage=format_percentage,
                           get_color_for_value=get_color_for_value)
+
+
+@app.route('/billing/create', methods=['POST'])
+def create_billing():
+    """创建核销记录"""
+    try:
+        trade_id = int(request.form['trade_id'])
+        billing_month = request.form['billing_month']
+        base_month = request.form['base_month']
+        base_price = float(request.form['base_price'])
+        related_po = request.form.get('related_po') or None
+        notes = request.form.get('notes') or None
+
+        billing_db.create_billing(
+            trade_id=trade_id,
+            billing_month=billing_month,
+            base_month=base_month,
+            base_price=base_price,
+            related_po=related_po,
+            notes=notes
+        )
+
+        flash('核销记录创建成功！', 'success')
+    except Exception as e:
+        logger.error(f"创建核销记录失败: {e}")
+        flash(f'创建失败: {str(e)}', 'error')
+
+    return redirect(url_for('billing'))
+
+
+@app.route('/billing/<int:billing_id>/edit', methods=['POST'])
+def edit_billing(billing_id):
+    """编辑核销记录"""
+    try:
+        billing_month = request.form.get('billing_month')
+        base_month = request.form.get('base_month')
+        base_price = request.form.get('base_price')
+        related_po = request.form.get('related_po') or None
+        notes = request.form.get('notes')
+
+        billing_db.update_billing(
+            billing_id=billing_id,
+            billing_month=billing_month,
+            base_month=base_month,
+            base_price=float(base_price) if base_price else None,
+            related_po=related_po,
+            notes=notes
+        )
+
+        flash('核销记录更新成功！', 'success')
+    except Exception as e:
+        logger.error(f"更新核销记录失败: {e}")
+        flash(f'更新失败: {str(e)}', 'error')
+
+    return redirect(url_for('billing'))
+
+
+@app.route('/billing/<int:billing_id>/delete', methods=['POST'])
+def delete_billing(billing_id):
+    """删除核销记录"""
+    try:
+        billing_db.delete_billing(billing_id)
+        flash('核销记录已删除', 'success')
+    except Exception as e:
+        logger.error(f"删除核销记录失败: {e}")
+        flash(f'删除失败: {str(e)}', 'error')
+
+    return redirect(url_for('billing'))
+
+
+@app.route('/api/smm_month_price')
+def api_smm_month_price():
+    """获取指定月份的SMM均价"""
+    month_param = request.args.get('month')
+    if not month_param:
+        return jsonify({'success': False, 'error': '缺少月份参数'})
+
+    try:
+        year, month = month_param.split('-')
+        smm_prices = db.get_smm_prices_by_month(int(year), int(month))
+
+        if smm_prices:
+            avg_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
+            return jsonify({'success': True, 'price': avg_price})
+        else:
+            return jsonify({'success': False, 'error': '该月份没有SMM价格数据'})
+    except Exception as e:
+        logger.error(f"获取SMM均价失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 
 # ==================== API 路由 ====================
@@ -579,27 +709,117 @@ def api_trades():
     return jsonify([trade.to_dict() for trade in trades])
 
 
-@app.route('/api/statistics')
-def api_statistics():
-    """API: 获取统计数据"""
-    analyzer.reload()
-    stats = db.get_statistics()
-
-    return jsonify({
-        'basic': stats,
-        'monthly': analyzer.get_monthly_stats(),
-        'products': analyzer.get_product_performance(),
-        'win_rate_trend': analyzer.get_win_rate_trend(),
-        'risk_metrics': analyzer.get_risk_metrics(),
-        'direction_stats': analyzer.get_direction_stats()
-    })
-
-
 @app.route('/export/csv')
 def export_csv():
     """导出CSV"""
     filepath = export_to_csv()
     return send_file(filepath, as_attachment=True)
+
+
+@app.route('/download')
+def download_file():
+    """下载导出的文件"""
+    from config import EXPORTS_DIR
+    import os
+
+    filename = request.args.get('file', '')
+    if not filename:
+        flash('文件名不能为空', 'error')
+        return redirect(url_for('index'))
+
+    # 安全检查：确保文件名不包含路径遍历
+    if '..' in filename or '/' in filename or '\\' in filename:
+        flash('非法的文件名', 'error')
+        return redirect(url_for('index'))
+
+    filepath = os.path.join(EXPORTS_DIR, filename)
+
+    # 检查文件是否存在且在exports目录内
+    if not os.path.exists(filepath) or not os.path.abspath(filepath).startswith(os.path.abspath(EXPORTS_DIR)):
+        flash('文件不存在', 'error')
+        return redirect(url_for('index'))
+
+    return send_file(filepath, as_attachment=True)
+
+
+@app.route('/sync/export')
+def export_sync():
+    """导出完整数据（用于同步）"""
+    from data_sync import DataExporter
+
+    format_type = request.args.get('format', 'db')  # 'db' 或 'json'
+    exporter = DataExporter()
+
+    if format_type == 'db':
+        filepath = exporter.export_database()
+        return send_file(filepath, as_attachment=True, mimetype='application/x-sqlite3')
+    else:
+        filepath = exporter.export_full()
+        return send_file(filepath, as_attachment=True, mimetype='application/json')
+
+
+@app.route('/sync/import', methods=['GET', 'POST'])
+def import_sync():
+    """导入数据（用于同步）"""
+    from data_sync import DataImporter
+
+    if request.method == 'GET':
+        return render_template('sync_import.html')
+
+    if 'file' not in request.files:
+        flash('没有上传文件', 'error')
+        return redirect(url_for('export_sync'))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash('没有选择文件', 'error')
+        return redirect(url_for('export_sync'))
+
+    # 检查文件类型
+    is_db_file = file.filename.endswith('.db')
+    is_json_file = file.filename.endswith('.json')
+
+    if not (is_db_file or is_json_file):
+        flash('请上传数据库文件(.db)或JSON文件(.json)', 'error')
+        return redirect(url_for('export_sync'))
+
+    try:
+        import tempfile
+        import os
+
+        # 保存临时文件
+        with tempfile.NamedTemporaryFile(mode='wb', suffix=os.path.splitext(file.filename)[1], delete=False) as tmp:
+            tmp.write(file.read())
+            tmp_path = tmp.name
+
+        try:
+            importer = DataImporter()
+
+            # 检查是否合并模式
+            merge_mode = request.form.get('merge') == 'true'
+
+            if is_db_file:
+                success = importer.import_database(tmp_path, backup=True)
+            else:
+                success = importer.import_full(tmp_path, merge=merge_mode)
+
+            if success:
+                flash('数据导入成功！', 'success')
+            else:
+                flash('数据导入失败，请检查文件格式', 'error')
+
+        finally:
+            # 删除临时文件
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    except Exception as e:
+        logger.error(f"导入数据失败: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f'导入失败: {str(e)}', 'error')
+
+    return redirect(url_for('index'))
 
 
 @app.route('/import', methods=['POST'])
@@ -1298,6 +1518,55 @@ def api_remove_trade_purchase(trade_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/api/trades/batch', methods=['POST'])
+def api_trades_batch():
+    """交易记录批量操作API"""
+    try:
+        data = request.get_json()
+        action = data.get('action')
+        trade_ids = data.get('trade_ids', [])
+
+        if not trade_ids:
+            return jsonify({'success': False, 'error': '未选择任何交易记录'}), 400
+
+        if action == 'delete':
+            # 批量删除
+            count = 0
+            for trade_id in trade_ids:
+                if db.delete_trade(trade_id):
+                    count += 1
+            return jsonify({'success': True, 'message': f'成功删除 {count} 条记录'})
+
+        elif action == 'export':
+            # 批量导出CSV
+            from utils import export_selected_trades_to_csv
+            if len(trade_ids) == 0:
+                return jsonify({'success': False, 'error': '未选择任何交易记录'}), 400
+
+            # 临时筛选出选中的记录
+            selected_trades = []
+            for trade_id in trade_ids:
+                trade = db.get_trade(trade_id)
+                if trade:
+                    selected_trades.append(trade)
+
+            filepath = export_selected_trades_to_csv(selected_trades)
+            return jsonify({
+                'success': True,
+                'message': f'成功导出 {len(selected_trades)} 条记录',
+                'file': filepath
+            })
+
+        else:
+            return jsonify({'success': False, 'error': '未知操作'}), 400
+
+    except Exception as e:
+        logger.error(f"批量操作失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/purchases/list')

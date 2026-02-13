@@ -41,8 +41,11 @@
                                 <a href="{{ url_for('physical_purchases') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['physical_purchases', 'new_physical_purchase', 'edit_physical_purchase'] %}bg-indigo-800{% endif %}">
                                     实物管理
                                 </a>
-                                <a href="{{ url_for('statistics') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint == 'statistics' %}bg-indigo-800{% endif %}">
-                                    统计分析
+                                <a href="{{ url_for('billing') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['billing', 'create_billing', 'edit_billing'] %}bg-indigo-800{% endif %}">
+                                    账务管理
+                                </a>
+                                <a href="{{ url_for('import_sync') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint == 'import_sync' or request.endpoint == 'export_sync' %}bg-indigo-800{% endif %}">
+                                    数据同步
                                 </a>
                             </div>
                         </div>
@@ -65,7 +68,8 @@
                     <a href="{{ url_for('smm_prices') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">SMM价格</a>
                     <a href="{{ url_for('futures_prices') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">期货价格</a>
                     <a href="{{ url_for('physical_purchases') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">实物管理</a>
-                    <a href="{{ url_for('statistics') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">统计分析</a>
+                    <a href="{{ url_for('billing') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">账务管理</a>
+                    <a href="{{ url_for('import_sync') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">数据同步</a>
                 </div>
             </div>
         </nav>

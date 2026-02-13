@@ -10,6 +10,7 @@ from models import Trade
 from smm_model import SMMPrice
 from futures_model import FuturesPrice
 from product_model import Product
+from migrations import migration_manager
 
 
 class DatabaseManager:
@@ -17,7 +18,15 @@ class DatabaseManager:
 
     def __init__(self, db_path: str = DATABASE_PATH):
         self.db_path = db_path
-        self.init_database()
+        self._run_migrations()  # 先执行迁移
+        self.init_database()  # 再初始化数据库
+
+    def _run_migrations(self):
+        """执行数据库迁移"""
+        if migration_manager.migrate():
+            logger.info("数据库迁移检查完成")
+        else:
+            logger.warning("数据库迁移失败，可能存在数据问题")
 
     @contextmanager
     def get_connection(self):
@@ -71,30 +80,6 @@ class DatabaseManager:
                     updated_at TEXT
                 )
             ''')
-
-            # 检查并添加新列（用于数据库迁移）
-            cursor = conn.execute("PRAGMA table_info(trades)")
-            columns = [row[1] for row in cursor.fetchall()]
-
-            if 'supplier' not in columns:
-                conn.execute('ALTER TABLE trades ADD COLUMN supplier TEXT')
-                logger.info("添加列: supplier")
-
-            if 'settlement_price' not in columns:
-                conn.execute('ALTER TABLE trades ADD COLUMN settlement_price REAL')
-                logger.info("添加列: settlement_price")
-
-            if 'premium' not in columns:
-                conn.execute('ALTER TABLE trades ADD COLUMN premium REAL')
-                logger.info("添加列: premium")
-
-            if 'physical_tons' not in columns:
-                conn.execute('ALTER TABLE trades ADD COLUMN physical_tons REAL')
-                logger.info("添加列: physical_tons")
-
-            if 'related_po' not in columns:
-                conn.execute('ALTER TABLE trades ADD COLUMN related_po TEXT')
-                logger.info("添加列: related_po")
 
             # 创建SMM价格表
             conn.execute('''
