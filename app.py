@@ -15,7 +15,7 @@ from futures_model import FuturesPrice
 from product_model import Product
 from physical_model import PhysicalPurchase, physical_db
 from billing_model import billing_db
-from utils import export_to_csv, import_from_csv, format_currency, format_percentage, get_color_for_value, export_selected_trades_to_csv
+from utils import export_to_csv, import_from_csv, format_currency, format_unit_price, format_percentage, get_color_for_value, export_trades_to_csv
 from markupsafe import Markup
 
 
@@ -28,6 +28,52 @@ def get_sort_icon(column, current_order_by, current_order):
             return Markup('<span class="ml-1 text-gray-600">↑</span>')
     else:
         return Markup('<span class="ml-1 text-gray-300">↕</span>')
+
+
+def calculate_smm_price(month_param=''):
+    """计算SMM月均价
+
+    Args:
+        month_param: 月份参数，格式为 'YYYY-MM'，空字符串表示使用当前月
+
+    Returns:
+        tuple: (smm_price, smm_month_display, smm_month)
+    """
+    if month_param:
+        year, month = month_param.split('-')
+        smm_prices = db.get_smm_prices_by_month(int(year), int(month))
+        if smm_prices:
+            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
+            smm_month_display = f"{year}年{month}月"
+            smm_month = month_param
+        else:
+            latest_smm = db.get_latest_smm_price()
+            smm_price = latest_smm.average_price if latest_smm else SMM_MONTHLY_PRICE
+            smm_month_display = "最新（该月无数据）"
+            smm_month = None
+    else:
+        current_date = datetime.now()
+        current_year = current_date.year
+        current_month = current_date.month
+        current_month_str = f"{current_year}-{current_month:02d}"
+
+        smm_prices = db.get_smm_prices_by_month(current_year, current_month)
+        if smm_prices:
+            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
+            smm_month_display = f"{current_year}年{current_month}月"
+            smm_month = current_month_str
+        else:
+            latest_smm = db.get_latest_smm_price()
+            if latest_smm:
+                smm_price = latest_smm.average_price
+                smm_month_display = "最新（当月无数据）"
+                smm_month = None
+            else:
+                smm_price = SMM_MONTHLY_PRICE
+                smm_month_display = "默认"
+                smm_month = None
+
+    return smm_price, smm_month_display, smm_month
 
 
 # 配置日志
@@ -47,9 +93,8 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # 禁用Flask的访问日志
 app.logger.setLevel(logging.CRITICAL)
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.CRITICAL)
-log.disabled = True
+logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
+logging.getLogger('werkzeug').disabled = True
 
 
 # ==================== 路由 ====================
@@ -102,43 +147,7 @@ def index():
         closed_trades_count = 0
 
     # 计算SMM均价（基于月份选择，不受时间筛选影响）
-    if month_param:
-        # 根据月份计算（格式: 2024-01）
-        year, month = month_param.split('-')
-        smm_prices = db.get_smm_prices_by_month(int(year), int(month))
-        if smm_prices:
-            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
-            smm_month_display = f"{year}年{month}月"
-            smm_month = month_param  # 用于判断当前选中的月份
-        else:
-            # 月份内没有数据，使用最新价格
-            latest_smm = db.get_latest_smm_price()
-            smm_price = latest_smm.average_price if latest_smm else SMM_MONTHLY_PRICE
-            smm_month_display = "最新（该月无数据）"
-            smm_month = None
-    else:
-        # 默认使用当月的SMM均价
-        current_date = datetime.now()
-        current_year = current_date.year
-        current_month = current_date.month
-        current_month_str = f"{current_year}-{current_month:02d}"
-
-        smm_prices = db.get_smm_prices_by_month(current_year, current_month)
-        if smm_prices:
-            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
-            smm_month_display = f"{current_year}年{current_month}月"
-            smm_month = current_month_str
-        else:
-            # 当月没有数据，使用最新价格
-            latest_smm = db.get_latest_smm_price()
-            if latest_smm:
-                smm_price = latest_smm.average_price
-                smm_month_display = "最新（当月无数据）"
-                smm_month = None
-            else:
-                smm_price = SMM_MONTHLY_PRICE
-                smm_month_display = "默认"
-                smm_month = None
+    smm_price, smm_month_display, smm_month = calculate_smm_price(month_param)
 
     # 计算折扣（开仓价 vs SMM均价）
     if avg_entry_price and smm_price:
@@ -238,6 +247,7 @@ def index():
                           current_start_date=start_date,
                           current_end_date=end_date,
                           format_currency=format_currency,
+                          format_unit_price=format_unit_price,
                           format_percentage=format_percentage,
                           get_color_for_value=get_color_for_value))
 
@@ -304,41 +314,7 @@ def trades():
         avg_settlement_price = 0
 
     # 计算SMM均价（基于月份选择）
-    if month_param:
-        year, month = month_param.split('-')
-        smm_prices = db.get_smm_prices_by_month(int(year), int(month))
-        if smm_prices:
-            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
-            smm_month_display = f"{year}年{month}月"
-            smm_month = month_param
-        else:
-            latest_smm = db.get_latest_smm_price()
-            smm_price = latest_smm.average_price if latest_smm else SMM_MONTHLY_PRICE
-            smm_month_display = "最新（该月无数据）"
-            smm_month = None
-    else:
-        # 默认使用当月的SMM均价
-        current_date = datetime.now()
-        current_year = current_date.year
-        current_month = current_date.month
-        current_month_str = f"{current_year}-{current_month:02d}"
-
-        smm_prices = db.get_smm_prices_by_month(current_year, current_month)
-        if smm_prices:
-            smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
-            smm_month_display = f"{current_year}年{current_month}月"
-            smm_month = current_month_str
-        else:
-            # 当月没有数据，使用最新价格
-            latest_smm = db.get_latest_smm_price()
-            if latest_smm:
-                smm_price = latest_smm.average_price
-                smm_month_display = "最新（当月无数据）"
-                smm_month = None
-            else:
-                smm_price = SMM_MONTHLY_PRICE
-                smm_month_display = "默认"
-                smm_month = None
+    smm_price, smm_month_display, smm_month = calculate_smm_price(month_param)
 
     # 计算折扣（开仓价 vs SMM均价）
     if avg_entry_price and smm_price:
@@ -380,6 +356,7 @@ def trades():
                           settlement_discount=settlement_discount,
                           available_months=available_months,
                           format_currency=format_currency,
+                          format_unit_price=format_unit_price,
                           get_color_for_value=get_color_for_value,
                           get_sort_icon=get_sort_icon)
 
@@ -607,6 +584,7 @@ def billing():
                           summary=summary,
                           today=today,
                           format_currency=format_currency,
+                          format_unit_price=format_unit_price,
                           format_percentage=format_percentage,
                           get_color_for_value=get_color_for_value)
 
@@ -922,21 +900,18 @@ def delete_smm_price(price_id):
     return redirect(url_for('smm_prices'))
 
 
-@app.route('/smm_prices/import', methods=['POST'])
-def import_smm_prices():
-    """通过Excel导入SMM价格数据"""
-    if 'file' not in request.files:
-        flash('没有上传文件', 'error')
-        return redirect(url_for('smm_prices'))
+def _import_price_data(file, price_model_class, create_func, redirect_url):
+    """通用价格数据导入函数
 
-    file = request.files['file']
-    if file.filename == '':
-        flash('没有选择文件', 'error')
-        return redirect(url_for('smm_prices'))
-
+    Args:
+        file: 上传的文件对象
+        price_model_class: 价格模型类
+        create_func: 数据库创建函数
+        redirect_url: 导入失败后重定向的URL
+    """
     if not (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
         flash('请上传Excel文件（.xlsx 或 .xls）', 'error')
-        return redirect(url_for('smm_prices'))
+        return redirect(url_for(redirect_url))
 
     try:
         import pandas as pd
@@ -958,19 +933,19 @@ def import_smm_prices():
 
             if missing_columns:
                 flash(f'Excel文件缺少必需的列: {", ".join(missing_columns)}', 'error')
-                return redirect(url_for('smm_prices'))
+                return redirect(url_for(redirect_url))
 
             # 批量插入数据
             success_count = 0
             for _, row in df.iterrows():
                 try:
-                    smm_price = SMMPrice(
-                        price_date=str(row['日期'])[:10],  # 确保日期格式正确
+                    price = price_model_class(
+                        price_date=str(row['日期'])[:10],
                         highest_price=float(row['最高价']),
                         lowest_price=float(row['最低价']),
                         average_price=float(row['均价'])
                     )
-                    db.create_smm_price(smm_price)
+                    create_func(price)
                     success_count += 1
                 except Exception as e:
                     logger.error(f"插入行数据失败: {e}")
@@ -989,12 +964,26 @@ def import_smm_prices():
         traceback.print_exc()
         flash(f'导入失败: {str(e)}', 'error')
 
-    return redirect(url_for('smm_prices'))
+    return redirect(url_for(redirect_url))
 
 
-@app.route('/smm_prices/template')
-def download_smm_template():
-    """下载SMM价格导入模板"""
+@app.route('/smm_prices/import', methods=['POST'])
+def import_smm_prices():
+    """通过Excel导入SMM价格数据"""
+    if 'file' not in request.files:
+        flash('没有上传文件', 'error')
+        return redirect(url_for('smm_prices'))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash('没有选择文件', 'error')
+        return redirect(url_for('smm_prices'))
+
+    return _import_price_data(file, SMMPrice, db.create_smm_price, 'smm_prices')
+
+
+def _generate_price_template(sheet_name, filename):
+    """生成价格导入模板的通用函数"""
     import pandas as pd
     from io import BytesIO
 
@@ -1011,16 +1000,22 @@ def download_smm_template():
     # 输出到Excel
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='SMM价格')
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
 
     output.seek(0)
 
     return send_file(
         output,
         as_attachment=True,
-        download_name='smm_price_template.xlsx',
+        download_name=filename,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
+
+@app.route('/smm_prices/template')
+def download_smm_template():
+    """下载SMM价格导入模板"""
+    return _generate_price_template('SMM价格', 'smm_price_template.xlsx')
 
 
 @app.route('/update_smm_price', methods=['POST'])
@@ -1130,93 +1125,13 @@ def import_futures_prices():
         flash('没有选择文件', 'error')
         return redirect(url_for('futures_prices'))
 
-    if not (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
-        flash('请上传Excel文件（.xlsx 或 .xls）', 'error')
-        return redirect(url_for('futures_prices'))
-
-    try:
-        import pandas as pd
-        import tempfile
-        import os
-
-        # 保存临时文件
-        with tempfile.NamedTemporaryFile(mode='wb', suffix='.xlsx', delete=False) as tmp:
-            tmp.write(file.read())
-            tmp_path = tmp.name
-
-        try:
-            # 读取Excel文件
-            df = pd.read_excel(tmp_path)
-
-            # 检查必需的列
-            required_columns = ['日期', '最高价', '最低价', '均价']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-
-            if missing_columns:
-                flash(f'Excel文件缺少必需的列: {", ".join(missing_columns)}', 'error')
-                return redirect(url_for('futures_prices'))
-
-            # 批量插入数据
-            success_count = 0
-            for _, row in df.iterrows():
-                try:
-                    futures_price = FuturesPrice(
-                        price_date=str(row['日期'])[:10],
-                        highest_price=float(row['最高价']),
-                        lowest_price=float(row['最低价']),
-                        average_price=float(row['均价'])
-                    )
-                    db.create_futures_price(futures_price)
-                    success_count += 1
-                except Exception as e:
-                    logger.error(f"插入行数据失败: {e}")
-                    continue
-
-            flash(f'成功导入 {success_count} 条价格记录', 'success')
-
-        finally:
-            # 删除临时文件
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-
-    except Exception as e:
-        logger.error(f"导入失败: {e}")
-        import traceback
-        traceback.print_exc()
-        flash(f'导入失败: {str(e)}', 'error')
-
-    return redirect(url_for('futures_prices'))
+    return _import_price_data(file, FuturesPrice, db.create_futures_price, 'futures_prices')
 
 
 @app.route('/futures_prices/template')
 def download_futures_template():
     """下载期货价格导入模板"""
-    import pandas as pd
-    from io import BytesIO
-
-    # 创建模板数据
-    template_data = {
-        '日期': ['2024-01-31', '2024-02-29', ''],
-        '最高价': [127000, 128000, ''],
-        '最低价': [123000, 124000, ''],
-        '均价': [125000, 126000, '']
-    }
-
-    df = pd.DataFrame(template_data)
-
-    # 输出到Excel
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='期货价格')
-
-    output.seek(0)
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name='futures_price_template.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    return _generate_price_template('期货价格', 'futures_price_template.xlsx')
 
 
 # ==================== 实物采购管理 ====================
@@ -1260,7 +1175,8 @@ def physical_purchases():
                           current_product=product_filter,
                           totals=totals,
                           physical_db=physical_db,
-                          format_currency=format_currency)
+                          format_currency=format_currency,
+                          format_unit_price=format_unit_price)
 
 
 @app.route('/physical_purchases/new', methods=['GET', 'POST'])
@@ -1541,7 +1457,6 @@ def api_trades_batch():
 
         elif action == 'export':
             # 批量导出CSV
-            from utils import export_selected_trades_to_csv
             if len(trade_ids) == 0:
                 return jsonify({'success': False, 'error': '未选择任何交易记录'}), 400
 
@@ -1552,7 +1467,7 @@ def api_trades_batch():
                 if trade:
                     selected_trades.append(trade)
 
-            filepath = export_selected_trades_to_csv(selected_trades)
+            filepath = export_trades_to_csv(selected_trades, "trades_export_selected")
             return jsonify({
                 'success': True,
                 'message': f'成功导出 {len(selected_trades)} 条记录',

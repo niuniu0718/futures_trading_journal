@@ -207,8 +207,9 @@ class DataImporter:
                                     f'INSERT OR IGNORE INTO {table_name} ({column_names}) VALUES ({placeholders})',
                                     values
                                 )
-                            except:
-                                pass
+                            except sqlite3.Error:
+                                # INSERT OR IGNORE 也失败，跳过此行
+                                continue
 
                 logger.info(f"导入表 {table_name}: {len(rows)} 行")
 

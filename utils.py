@@ -10,11 +10,20 @@ from models import Trade
 from config import EXPORTS_DIR
 
 
-def export_to_csv() -> str:
-    """导出交易记录到CSV文件"""
-    trades = db.get_all_trades()
+def export_trades_to_csv(trades=None, filename_prefix="trades_export") -> str:
+    """导出交易记录到CSV文件
 
-    filename = f"trades_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    Args:
+        trades: 要导出的交易列表，None表示导出全部
+        filename_prefix: 文件名前缀
+
+    Returns:
+        导出文件的完整路径
+    """
+    if trades is None:
+        trades = db.get_all_trades()
+
+    filename = f"{filename_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     filepath = os.path.join(EXPORTS_DIR, filename)
 
     # 使用 utf-8-sig 编码，添加BOM头以支持Excel正确显示中文
@@ -44,6 +53,11 @@ def export_to_csv() -> str:
             ])
 
     return filepath
+
+
+def export_to_csv() -> str:
+    """导出所有交易记录到CSV文件（向后兼容）"""
+    return export_trades_to_csv()
 
 
 def import_from_csv(filepath: str) -> int:
@@ -83,11 +97,18 @@ def import_from_csv(filepath: str) -> int:
 
 
 def format_currency(value: float) -> str:
-    """格式化货币"""
+    """格式化货币（带符号）"""
     if value >= 0:
         return f"+¥{value:,.2f}"
     else:
         return f"-¥{abs(value):,.2f}"
+
+
+def format_unit_price(value: float) -> str:
+    """格式化单价（不带符号）"""
+    if value is None or value == 0:
+        return ''
+    return f"¥{value:,.2f}"
 
 
 def format_percentage(value: float) -> str:
@@ -105,29 +126,3 @@ def get_color_for_value(value: float) -> str:
         return "text-gray-600"
 
 
-def export_selected_trades_to_csv(trades):
-    """导出选中的交易记录到CSV文件"""
-    filename = f"trades_export_selected_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    filepath = os.path.join(EXPORTS_DIR, filename)
-
-    with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            'ID', '交易日期', '交易所', '品种', '合约', '方向', '开仓价',
-            '数量', '实物吨', '关联PO', '供应商', '结算价', '贴水',
-            '止损价', '止盈价', '平仓价', '平仓日期', '手续费',
-            '盈亏', '状态', 'MA5', 'MA10', 'MA20', 'RSI', 'MACD',
-            '入场理由', '市场走势', '备注', '创建时间', '更新时间'
-        ])
-        for trade in trades:
-            writer.writerow([
-                trade.id, trade.trade_date, trade.exchange, trade.product_name,
-                trade.contract, trade.direction, trade.entry_price, trade.quantity,
-                trade.physical_tons, trade.related_po, trade.supplier,
-                trade.settlement_price, trade.premium, trade.stop_loss, trade.take_profit,
-                trade.exit_price, trade.exit_date, trade.fee, trade.profit_loss,
-                trade.status, trade.ma5, trade.ma10, trade.ma20, trade.rsi, trade.macd,
-                trade.entry_reason, trade.market_trend, trade.notes,
-                trade.created_at, trade.updated_at
-            ])
-    return filepath

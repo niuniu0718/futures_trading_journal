@@ -402,9 +402,14 @@ class DatabaseManager:
             ).fetchall()
             return [row['month'] for row in rows]
 
-    def _row_to_smm_price(self, row) -> SMMPrice:
-        """将数据库行转换为SMMPrice对象"""
-        return SMMPrice(
+    def _row_to_price(self, row, price_class):
+        """将数据库行转换为价格对象（通用函数）
+
+        Args:
+            row: 数据库行
+            price_class: 价格类（SMMPrice 或 FuturesPrice）
+        """
+        return price_class(
             id=row['id'],
             price_date=row['price_date'],
             highest_price=row['highest_price'],
@@ -413,6 +418,10 @@ class DatabaseManager:
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
+
+    def _row_to_smm_price(self, row) -> SMMPrice:
+        """将数据库行转换为SMMPrice对象"""
+        return self._row_to_price(row, SMMPrice)
 
     # ==================== 期货价格管理 ====================
 
@@ -478,15 +487,7 @@ class DatabaseManager:
 
     def _row_to_futures_price(self, row) -> FuturesPrice:
         """将数据库行转换为FuturesPrice对象"""
-        return FuturesPrice(
-            id=row['id'],
-            price_date=row['price_date'],
-            highest_price=row['highest_price'],
-            lowest_price=row['lowest_price'],
-            average_price=row['average_price'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
-        )
+        return self._row_to_price(row, FuturesPrice)
 
     # ==================== 品种管理 ====================
 

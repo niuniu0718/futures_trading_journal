@@ -109,9 +109,16 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ purchase.po_number or '-' }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ "%.2f"|format(purchase.quantity) }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ format_currency(purchase.unit_price) if purchase.unit_price else '-' }}
-                        {% if purchase.premium %}
-                        <span class="text-xs text-gray-500">+{{ format_currency(purchase.premium) }}</span>
+                        {% if purchase.unit_price and purchase.unit_price != 0 %}
+                            {{ format_unit_price(purchase.unit_price) }}
+                        {% endif %}
+                        {% if purchase.premium and purchase.premium != 0 %}
+                        <span class="text-xs text-gray-500 {% if purchase.unit_price and purchase.unit_price != 0 %}ml-1{% endif %}">{{ format_currency(purchase.premium) }}</span>
+                        {% endif %}
+                        {% if not purchase.unit_price or purchase.unit_price == 0 %}
+                            {% if not purchase.premium or purchase.premium == 0 %}
+                            <span class="text-gray-300">未设置</span>
+                            {% endif %}
                         {% endif %}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ format_currency(purchase.total_amount) }}</td>
