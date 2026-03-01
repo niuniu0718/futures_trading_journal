@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from loguru import logger
 from config import DATABASE_PATH
+from database import DatabaseManager
 
 
 class BillingRecord:
@@ -17,7 +18,8 @@ class BillingRecord:
         self.trade_id = kwargs.get('trade_id')
         self.billing_month = kwargs.get('billing_month')  # 核销月份
         self.base_month = kwargs.get('base_month')  # Base月份（格式: 2024-01）
-        self.base_price = kwargs.get('base_price')  # Base价格（对应月份的SMM均价）
+        self.base_price = kwargs.get('base_price')  # Base价格（历史保存的SMM均价）
+        self.current_smm_price = kwargs.get('current_smm_price')  # 当前SMM均价（动态获取）
         self.settlement_price = kwargs.get('settlement_price')  # 结算价
         self.quantity = kwargs.get('quantity')  # 数量
         self.physical_tons = kwargs.get('physical_tons')  # 实物吨
@@ -33,6 +35,18 @@ class BillingRecord:
         self.supplier = kwargs.get('supplier')
         self.product_name = kwargs.get('product_name')
         self.contract = kwargs.get('contract')
+
+    @property
+    def display_price(self):
+        """显示价格（优先使用当前SMM价格，如果没有则使用保存的价格）"""
+        return self.current_smm_price if self.current_smm_price is not None else self.base_price
+
+    @property
+    def current_discount(self):
+        """基于当前SMM价格计算折扣"""
+        if self.display_price and self.display_price > 0:
+            return ((self.display_price - self.settlement_price) / self.display_price) * 100
+        return 0
 
     @property
     def billing_month_display(self):
@@ -60,11 +74,14 @@ class BillingRecord:
             'base_month': self.base_month,
             'base_month_display': self.base_month_display,
             'base_price': self.base_price,
+            'current_smm_price': self.current_smm_price,
+            'display_price': self.display_price,
             'settlement_price': self.settlement_price,
             'quantity': self.quantity,
             'physical_tons': self.physical_tons,
             'settlement_amount': self.settlement_amount,
             'discount': self.discount,
+            'current_discount': self.current_discount,
             'related_po': self.related_po,
             'notes': self.notes,
             'created_at': self.created_at,
@@ -226,13 +243,29 @@ class BillingDatabase:
             cursor = conn.execute(query, params)
             records = []
 
+            # 初始化数据库连接用于获取SMM价格
+            smm_db = DatabaseManager()
+
             for row in cursor.fetchall():
+                # 获取当前SMM价格
+                current_smm_price = None
+                base_month = row['base_month']
+                if base_month and '-' in str(base_month):
+                    try:
+                        year, month = base_month.split('-')
+                        smm_prices = smm_db.get_smm_prices_by_month(int(year), int(month))
+                        if smm_prices:
+                            current_smm_price = sum(p.average_price for p in smm_prices) / len(smm_prices)
+                    except Exception as e:
+                        logger.warning(f"获取SMM价格失败: base_month={base_month}, error={e}")
+
                 record = BillingRecord(
                     id=row['id'],
                     trade_id=row['trade_id'],
                     billing_month=row['billing_month'],
                     base_month=row['base_month'],
                     base_price=row['base_price'],
+                    current_smm_price=current_smm_price,
                     settlement_price=row['settlement_price'],
                     quantity=row['quantity'],
                     physical_tons=row['physical_tons'],
@@ -359,7 +392,7 @@ class BillingDatabase:
 
     def get_billing_summary(self, month_filter: str = None,
                           supplier_filter: str = None) -> Dict[str, Any]:
-        """获取核销汇总统计"""
+        """获取核销汇总统计（使用当前SMM价格计算折扣）"""
         conn = self.get_connection()
         try:
             query = '''
@@ -369,8 +402,7 @@ class BillingDatabase:
                     SUM(br.physical_tons) as total_physical_tons,
                     SUM(br.settlement_amount) as total_settlement_amount,
                     AVG(br.settlement_price) as avg_settlement_price,
-                    AVG(br.base_price) as avg_base_price,
-                    AVG(br.discount) as avg_discount
+                    AVG(br.base_price) as avg_base_price
                 FROM billing_records br
                 JOIN trades t ON br.trade_id = t.id
                 WHERE 1=1
@@ -388,14 +420,31 @@ class BillingDatabase:
             cursor = conn.execute(query, params)
             row = cursor.fetchone()
 
+            # 获取所有核销记录以动态计算折扣
+            billings = self.get_all_billings(
+                month_filter=month_filter,
+                supplier_filter=supplier_filter
+            )
+
+            # 基于当前SMM价格计算平均折扣
+            current_discounts = []
+            current_base_prices = []
+            for billing in billings:
+                if billing.display_price and billing.display_price > 0:
+                    current_discounts.append(billing.current_discount)
+                    current_base_prices.append(billing.display_price)
+
+            avg_discount = sum(current_discounts) / len(current_discounts) if current_discounts else 0
+            avg_base_price = sum(current_base_prices) / len(current_base_prices) if current_base_prices else 0
+
             return {
                 'count': row['count'] or 0,
                 'total_quantity': row['total_quantity'] or 0,
                 'total_physical_tons': row['total_physical_tons'] or 0,
                 'total_settlement_amount': row['total_settlement_amount'] or 0,
                 'avg_settlement_price': row['avg_settlement_price'] or 0,
-                'avg_base_price': row['avg_base_price'] or 0,
-                'avg_discount': row['avg_discount'] or 0
+                'avg_base_price': avg_base_price,
+                'avg_discount': avg_discount
             }
         finally:
             conn.close()

@@ -12,46 +12,45 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body class="bg-gray-50">
+<body>
     <div x-data="{ mobileMenuOpen: false }">
         <!-- 导航栏 -->
-        <nav class="bg-indigo-600 shadow-lg">
+        <nav class="nav-gradient">
             <div class="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
-                <div class="flex items-center justify-between h-16">
-                    <div class="flex items-center">
-                        <a href="{{ url_for('index') }}" class="flex-shrink-0">
-                            <svg class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div class="flex items-center justify-between h-14">
+                    <div class="flex items-center gap-8">
+                        <a href="{{ url_for('index') }}" class="flex items-center gap-2">
+                            <svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                             </svg>
+                            <span class="text-white font-semibold text-lg hidden sm:block">期货记录</span>
                         </a>
-                        <div class="hidden md:block">
-                            <div class="ml-10 flex items-baseline space-x-4">
-                                <a href="{{ url_for('index') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint == 'index' %}bg-indigo-800{% endif %}">
-                                    仪表盘
-                                </a>
-                                <a href="{{ url_for('trades') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['trades', 'new_trade', 'edit_trade'] %}bg-indigo-800{% endif %}">
-                                    交易记录
-                                </a>
-                                <a href="{{ url_for('smm_prices') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['smm_prices', 'new_smm_price', 'edit_smm_price'] %}bg-indigo-800{% endif %}">
-                                    SMM价格
-                                </a>
-                                <a href="{{ url_for('futures_prices') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['futures_prices', 'new_futures_price', 'edit_futures_price'] %}bg-indigo-800{% endif %}">
-                                    期货价格
-                                </a>
-                                <a href="{{ url_for('physical_purchases') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['physical_purchases', 'new_physical_purchase', 'edit_physical_purchase'] %}bg-indigo-800{% endif %}">
-                                    实物管理
-                                </a>
-                                <a href="{{ url_for('billing') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint in ['billing', 'create_billing', 'edit_billing'] %}bg-indigo-800{% endif %}">
-                                    账务管理
-                                </a>
-                                <a href="{{ url_for('import_sync') }}" class="text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium {% if request.endpoint == 'import_sync' or request.endpoint == 'export_sync' %}bg-indigo-800{% endif %}">
-                                    数据同步
-                                </a>
-                            </div>
+                        <div class="hidden md:flex items-center gap-1">
+                            <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                仪表盘
+                            </a>
+                            <a href="{{ url_for('trades') }}" class="nav-link {% if request.endpoint in ['trades', 'new_trade', 'edit_trade'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                交易记录
+                            </a>
+                            <a href="{{ url_for('smm_prices') }}" class="nav-link {% if request.endpoint in ['smm_prices', 'new_smm_price', 'edit_smm_price'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                SMM价格
+                            </a>
+                            <a href="{{ url_for('futures_prices') }}" class="nav-link {% if request.endpoint in ['futures_prices', 'new_futures_price', 'edit_futures_price'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                期货价格
+                            </a>
+                            <a href="{{ url_for('physical_purchases') }}" class="nav-link {% if request.endpoint in ['physical_purchases', 'new_physical_purchase', 'edit_physical_purchase'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                实物管理
+                            </a>
+                            <a href="{{ url_for('billing') }}" class="nav-link {% if request.endpoint in ['billing', 'create_billing', 'edit_billing'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                账务管理
+                            </a>
+                            <a href="{{ url_for('import_sync') }}" class="nav-link {% if request.endpoint == 'import_sync' or request.endpoint == 'export_sync' %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                数据同步
+                            </a>
                         </div>
                     </div>
-                    <div class="-mr-2 flex md:hidden">
-                        <button @click="mobileMenuOpen = !mobileMenuOpen" type="button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
+                    <div class="flex md:hidden">
+                        <button @click="mobileMenuOpen = !mobileMenuOpen" type="button" class="inline-flex items-center justify-center p-2 rounded-md text-white/80 hover:text-white hover:bg-white/10 focus:outline-none">
                             <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                 <path :class="{'hidden': mobileMenuOpen, 'inline-flex': !mobileMenuOpen }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                                 <path :class="{'hidden': !mobileMenuOpen, 'inline-flex': mobileMenuOpen }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -61,15 +60,15 @@
                 </div>
             </div>
             <!-- 移动端菜单 -->
-            <div :class="{'block': mobileMenuOpen, 'hidden': !mobileMenuOpen}" class="hidden md:hidden">
+            <div :class="{'block': mobileMenuOpen, 'hidden': !mobileMenuOpen}" class="hidden md:hidden border-t border-white/10">
                 <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-                    <a href="{{ url_for('index') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">仪表盘</a>
-                    <a href="{{ url_for('trades') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">交易记录</a>
-                    <a href="{{ url_for('smm_prices') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">SMM价格</a>
-                    <a href="{{ url_for('futures_prices') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">期货价格</a>
-                    <a href="{{ url_for('physical_purchases') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">实物管理</a>
-                    <a href="{{ url_for('billing') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">账务管理</a>
-                    <a href="{{ url_for('import_sync') }}" class="text-white hover:bg-indigo-700 block px-3 py-2 rounded-md text-base font-medium">数据同步</a>
+                    <a href="{{ url_for('index') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">仪表盘</a>
+                    <a href="{{ url_for('trades') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">交易记录</a>
+                    <a href="{{ url_for('smm_prices') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">SMM价格</a>
+                    <a href="{{ url_for('futures_prices') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">期货价格</a>
+                    <a href="{{ url_for('physical_purchases') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">实物管理</a>
+                    <a href="{{ url_for('billing') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">账务管理</a>
+                    <a href="{{ url_for('import_sync') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">数据同步</a>
                 </div>
             </div>
         </nav>
@@ -77,29 +76,19 @@
         <!-- Flash 消息 -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 mt-4">
+                <div class="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 mt-6">
                     {% for category, message in messages %}
-                        <div class="rounded-md p-4 mb-4 {% if category == 'success' %}bg-green-50 text-green-800{% elif category == 'error' %}bg-red-50 text-red-800{% elif category == 'warning' %}bg-yellow-50 text-yellow-800{% else %}bg-blue-50 text-blue-800{% endif %}">
-                            <div class="flex">
-                                <div class="flex-shrink-0">
-                                    {% if category == 'success' %}
-                                        <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                                        </svg>
-                                    {% elif category == 'error' %}
-                                        <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                                        </svg>
-                                    {% else %}
-                                        <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                                        </svg>
-                                    {% endif %}
-                                </div>
-                                <div class="ml-3">
-                                    <p class="text-sm font-medium">{{ message }}</p>
-                                </div>
-                            </div>
+                        <div class="alert {% if category == 'success' %}alert-success{% elif category == 'error' %}alert-error{% elif category == 'warning' %}alert-warning{% else %}alert-info{% endif %} fade-in">
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                {% if category == 'success' %}
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                {% elif category == 'error' %}
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                                {% else %}
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                                {% endif %}
+                            </svg>
+                            <p class="text-sm font-medium">{{ message }}</p>
                         </div>
                     {% endfor %}
                 </div>
@@ -112,10 +101,10 @@
         </main>
 
         <!-- 页脚 -->
-        <footer class="bg-white border-t border-gray-200 mt-12">
-            <div class="max-w-[95%] 2xl:max-w-[1800px] mx-auto py-6 px-4 sm:px-6 lg:px-8 xl:px-12">
-                <p class="text-center text-gray-500 text-sm">
-                    期货交易记录系统 &copy; 2024 | 仅供学习交流使用
+        <footer>
+            <div class="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
+                <p class="text-center">
+                    期货交易记录系统 &copy; 2024
                 </p>
             </div>
         </footer>

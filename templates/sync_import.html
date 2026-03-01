@@ -5,14 +5,15 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <div class="mb-6">
-        <h1 class="text-3xl font-bold text-gray-900">数据同步</h1>
-        <p class="mt-2 text-gray-600">在不同设备间同步您的交易数据</p>
+        <h1 class="text-2xl font-bold" style="color: var(--text-primary)">数据同步</h1>
+        <p class="mt-2" style="color: var(--text-secondary)">在不同设备间同步您的交易数据</p>
     </div>
 
     <!-- 导出数据 -->
-    <div class="bg-white shadow rounded-lg p-6 mb-6">
+    <div class="content-card mb-6">
+        <div class="card-body">
         <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <svg class="h-6 w-6 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg class="h-6 w-6 mr-2" style="color: var(--catl-blue)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             导出数据
@@ -22,49 +23,51 @@
         </p>
         <div class="flex space-x-4">
             <a href="{{ url_for('export_sync', format='db') }}"
-               class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+               class="btn btn-primary">
                 <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 导出为数据库文件 (.db)
             </a>
             <a href="{{ url_for('export_sync', format='json') }}"
-               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+               class="btn btn-secondary">
                 <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 导出为JSON文件 (.json)
             </a>
         </div>
-        <p class="mt-3 text-xs text-gray-500">
+        <p class="mt-3 text-xs" style="color: var(--text-muted)">
             推荐使用数据库文件(.db)，速度更快且文件更小。
         </p>
     </div>
+    </div>
 
     <!-- 导入数据 -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-            <svg class="h-6 w-6 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div class="content-card">
+        <div class="card-body">
+        <h2 class="text-xl font-semibold mb-4 flex items-center" style="color: var(--text-primary)">
+            <svg class="h-6 w-6 mr-2" style="color: var(--catl-blue)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
             导入数据
         </h2>
-        <p class="text-gray-600 mb-4">
+        <p class="mb-4" style="color: var(--text-secondary)">
             从导出的文件中恢复数据。系统会自动备份当前数据，并执行必要的数据库迁移。
         </p>
 
         <form action="{{ url_for('import_sync') }}" method="post" enctype="multipart/form-data"
               x-data="{ mergeMode: false }">
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">选择文件</label>
+                <label class="form-label">选择文件</label>
                 <div class="flex items-center justify-center w-full">
-                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 rounded-lg cursor-pointer" style="border-color: var(--border-medium); border-style: dashed; background: var(--bg-subtle)">
                         <div class="flex flex-col items-center justify-center pt-5 pb-6">
                             <svg class="w-8 h-8 mb-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
-                            <p class="mb-1 text-sm text-gray-500"><span class="font-semibold">点击上传</span> 或拖拽文件到这里</p>
-                            <p class="text-xs text-gray-500">支持 .db 或 .json 文件</p>
+                            <p class="mb-1 text-sm" style="color: var(--text-secondary)"><span class="font-semibold">点击上传</span> 或拖拽文件到这里</p>
+                            <p class="text-xs" style="color: var(--text-muted)">支持 .db 或 .json 文件</p>
                         </div>
                         <input name="file" type="file" class="hidden" accept=".db,.json" required />
                     </label>
@@ -74,31 +77,25 @@
             <div class="mb-4" x-show="$el.querySelector('input[type=file]').files[0]?.name.endsWith('.json')">
                 <label class="flex items-center">
                     <input type="checkbox" name="merge" value="true" x-model="mergeMode"
-                           class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                    <span class="ml-2 text-sm text-gray-700">合并模式（保留现有数据）</span>
+                           class="rounded border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50" style="color: var(--catl-blue)">
+                    <span class="ml-2 text-sm" style="color: var(--text-primary)">合并模式（保留现有数据）</span>
                 </label>
-                <p class="mt-1 text-xs text-gray-500">
+                <p class="mt-1 text-xs" style="color: var(--text-muted)">
                     仅JSON格式支持合并模式。启用后会将导入数据与现有数据合并，否则会覆盖所有数据。
                 </p>
             </div>
 
-            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-                <div class="flex">
-                    <div class="flex-shrink-0">
-                        <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm text-yellow-700">
-                            <strong>注意：</strong>导入数据会自动备份当前数据库。如果导入的是旧版本数据，系统会自动执行数据库升级。
-                        </p>
-                    </div>
-                </div>
+            <div class="alert alert-warning">
+                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                <p class="text-sm font-medium">
+                    <strong>注意：</strong>导入数据会自动备份当前数据库。如果导入的是旧版本数据，系统会自动执行数据库升级。
+                </p>
             </div>
 
             <button type="submit"
-                    class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                    class="w-full btn btn-primary">
                 <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
@@ -108,14 +105,16 @@
     </div>
 
     <!-- 使用说明 -->
-    <div class="mt-6 bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-3">使用说明</h3>
-        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-600">
+    <div class="content-card">
+        <div class="card-body">
+        <h3 class="text-lg font-medium mb-3" style="color: var(--text-primary)">使用说明</h3>
+        <ol class="list-decimal list-inside space-y-2 text-sm" style="color: var(--text-secondary)">
             <li>在设备A上点击"导出数据"，下载生成的文件</li>
             <li>将文件传输到设备B（通过网盘、邮件、U盘等方式）</li>
             <li>在设备B上点击"导入数据"，选择文件并上传</li>
             <li>系统会自动备份数据并执行必要的迁移，确保数据兼容</li>
         </ol>
+    </div>
     </div>
 </div>
 {% endblock %}

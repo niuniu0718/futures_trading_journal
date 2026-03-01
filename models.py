@@ -39,6 +39,7 @@ class Trade:
     notes: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    is_billed: bool = False  # 是否已核销
 
     def __post_init__(self):
         """初始化后处理"""
@@ -125,5 +126,6 @@ class Trade:
             'trend_name': self.trend_name,
             'notes': self.notes,
             'created_at': self.created_at,
-            'updated_at': self.updated_at
+            'updated_at': self.updated_at,
+            'is_billed': self.is_billed
         }

@@ -32,7 +32,7 @@
         <div class="mt-2 text-3xl font-bold {{ get_color_for_value(summary.avg_discount) }}">
             {{ "+" if summary.avg_discount > 0 else "" }}{{ "%.2f"|format(summary.avg_discount) }}%
         </div>
-        <div class="mt-1 text-xs text-gray-500">相对于SMM均价</div>
+        <div class="mt-1 text-xs text-gray-500">相对于当前SMM均价</div>
     </div>
 </div>
 
@@ -122,7 +122,7 @@
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">数量</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">实物吨</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">结算价均价</th>
-                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Base价格</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">当前SMM价格</th>
                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">折扣</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Base月份</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">核销月份</th>
@@ -140,9 +140,14 @@
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ "%.2f"|format(bill.quantity) }}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ "%.2f"|format(bill.physical_tons) }}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ format_currency(bill.settlement_price) }}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">{{ format_currency(bill.base_price) }}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium {{ get_color_for_value(bill.discount) }}">
-                        {{ "+" if bill.discount > 0 else "" }}{{ "%.2f"|format(bill.discount) }}%
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                        {{ format_currency(bill.display_price) }}
+                        {% if bill.current_smm_price is not none and bill.current_smm_price != bill.base_price %}
+                        <span class="text-xs text-blue-600 ml-1">(当前)</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-medium {{ get_color_for_value(bill.current_discount) }}">
+                        {{ "+" if bill.current_discount > 0 else "" }}{{ "%.2f"|format(bill.current_discount) }}%
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                         {% if bill.base_month and '-' in bill.base_month %}
@@ -160,8 +165,13 @@
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ bill.related_po or '-' }}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-center">
-                        <button onclick="editBilling({{ bill.id }}, '{{ bill.billing_month }}', '{{ bill.base_month }}', {{ bill.base_price }}, '{{ bill.related_po or '' }}', '{{ bill.notes or '' }}')"
-                                class="text-indigo-600 hover:text-indigo-900 text-sm font-medium mr-2">
+                        <button class="edit-billing-btn text-indigo-600 hover:text-indigo-900 text-sm font-medium mr-2"
+                                data-billing-id="{{ bill.id }}"
+                                data-billing-month="{{ bill.billing_month }}"
+                                data-base-month="{{ bill.base_month }}"
+                                data-base-price="{{ bill.display_price }}"
+                                data-related-po="{{ bill.related_po or '' }}"
+                                data-notes="{{ bill.notes or '' }}">
                             编辑
                         </button>
                         <form method="post" action="{{ url_for('delete_billing', billing_id=bill.id) }}"
@@ -267,50 +277,52 @@
         <div class="px-6 py-4 border-b border-gray-200">
             <h3 class="text-lg font-medium text-gray-900">编辑核销记录</h3>
         </div>
-        <form method="post" class="px-6 py-4">
+        <form id="editBillingForm" method="post" action="">
             <input type="hidden" id="edit_billing_id" name="billing_id" value="">
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">核销月份</label>
-                <input type="month" id="edit_billing_month" name="billing_month" required
-                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+            <div class="px-6 py-4">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">核销月份</label>
+                    <input type="month" id="edit_billing_month" name="billing_month" required
+                           class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Base月份</label>
+                    <select id="edit_base_month" name="base_month" required onchange="updateEditBasePrice()"
+                            class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">请选择月份</option>
+                        {% for m in available_smm_months %}
+                        <option value="{{ m }}">{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Base价格</label>
+                    <input type="number" step="0.01" id="edit_base_price" name="base_price" required
+                           class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">关联PO</label>
+                    <input type="text" id="edit_related_po" name="related_po" placeholder="可选，填写后自动同步到交易记录"
+                           class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+                    <textarea id="edit_notes" name="notes" rows="2"
+                              class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
             </div>
 
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Base月份</label>
-                <select id="edit_base_month" name="base_month" required onchange="updateEditBasePrice()"
-                        class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
-                    <option value="">请选择月份</option>
-                    {% for m in available_smm_months %}
-                    <option value="{{ m }}">{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Base价格</label>
-                <input type="number" step="0.01" id="edit_base_price" name="base_price" required
-                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">关联PO</label>
-                <input type="text" id="edit_related_po" name="related_po" placeholder="可选，填写后自动同步到交易记录"
-                       class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
-
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
-                <textarea id="edit_notes" name="notes" rows="2"
-                          class="w-full border border-gray-300 rounded-md shadow-sm px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
-            </div>
-
-            <div class="flex justify-end space-x-3">
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
                 <button type="button" onclick="closeEditModal()"
                         class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                     取消
                 </button>
-                <button type="submit" formaction=""
+                <button type="submit"
                         class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
                     保存
                 </button>
@@ -350,6 +362,8 @@ function updateBasePrice() {
 }
 
 function editBilling(billingId, billingMonth, baseMonth, basePrice, relatedPo, notes) {
+    const form = document.getElementById('editBillingForm');
+
     document.getElementById('edit_billing_id').value = billingId;
     document.getElementById('edit_billing_month').value = billingMonth;
     document.getElementById('edit_base_month').value = baseMonth;
@@ -358,16 +372,38 @@ function editBilling(billingId, billingMonth, baseMonth, basePrice, relatedPo, n
     document.getElementById('edit_notes').value = notes;
 
     // 设置表单action
-    const form = document.querySelector('#editModal form');
     form.action = '/billing/' + billingId + '/edit';
 
     document.getElementById('editModal').classList.remove('hidden');
     document.getElementById('editModal').classList.add('flex');
 }
 
+// 使用事件委托处理编辑按钮点击
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('edit-billing-btn')) {
+        const btn = e.target;
+        const billingId = btn.dataset.billingId;
+        const billingMonth = btn.dataset.billingMonth;
+        const baseMonth = btn.dataset.baseMonth;
+        const basePrice = parseFloat(btn.dataset.basePrice);
+        const relatedPo = btn.dataset.relatedPo || '';
+        const notes = btn.dataset.notes || '';
+
+        editBilling(billingId, billingMonth, baseMonth, basePrice, relatedPo, notes);
+    }
+});
+
 function closeEditModal() {
-    document.getElementById('editModal').classList.add('hidden');
-    document.getElementById('editModal').classList.remove('flex');
+    const modal = document.getElementById('editModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    // 清空表单
+    document.getElementById('edit_billing_id').value = '';
+    document.getElementById('edit_billing_month').value = '';
+    document.getElementById('edit_base_month').value = '';
+    document.getElementById('edit_base_price').value = '';
+    document.getElementById('edit_related_po').value = '';
+    document.getElementById('edit_notes').value = '';
 }
 
 function updateEditBasePrice() {

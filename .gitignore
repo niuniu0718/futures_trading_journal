@@ -44,3 +44,15 @@ Thumbs.db
 # Temporary files
 *.tmp
 package_temp/
+
+# Node.js / Playwright
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Screenshots
+截图/
+
+# Claude settings
+.claude/settings.local.json

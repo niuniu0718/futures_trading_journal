@@ -165,18 +165,24 @@ class DatabaseManager:
     def get_all_trades(self, status: Optional[str] = None, product: Optional[str] = None,
                        order_by: str = 'trade_date', order: str = 'DESC') -> List[Trade]:
         """获取所有交易记录"""
-        query = 'SELECT * FROM trades WHERE 1=1'
+        query = '''
+            SELECT t.*,
+                   CASE WHEN br.id IS NOT NULL THEN 1 ELSE 0 END as is_billed
+            FROM trades t
+            LEFT JOIN billing_records br ON t.id = br.trade_id
+            WHERE 1=1
+        '''
         params = []
 
         if status:
-            query += ' AND status = ?'
+            query += ' AND t.status = ?'
             params.append(status)
 
         if product:
-            query += ' AND product_name = ?'
+            query += ' AND t.product_name = ?'
             params.append(product)
 
-        query += f' ORDER BY {order_by} {order}'
+        query += f' ORDER BY t.{order_by} {order}'
 
         with self.get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
@@ -561,6 +567,7 @@ class DatabaseManager:
         premium = row['premium'] if 'premium' in row.keys() else None
         physical_tons = row['physical_tons'] if 'physical_tons' in row.keys() else None
         related_po = row['related_po'] if 'related_po' in row.keys() else None
+        is_billed = bool(row['is_billed']) if 'is_billed' in row.keys() else False
 
         return Trade(
             id=row['id'],
@@ -592,7 +599,8 @@ class DatabaseManager:
             market_trend=row['market_trend'],
             notes=row['notes'],
             created_at=row['created_at'],
-            updated_at=row['updated_at']
+            updated_at=row['updated_at'],
+            is_billed=is_billed
         )
 
 

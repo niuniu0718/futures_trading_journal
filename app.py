@@ -265,6 +265,7 @@ def trades():
     status_filter = request.args.get('status')
     product_filter = request.args.get('product')
     has_po_filter = request.args.get('has_po')  # 'yes' 或 'no'
+    is_billed_filter = request.args.get('is_billed', 'no')  # 默认显示未核销
     start_date = request.args.get('start_date')  # 开始日期
     end_date = request.args.get('end_date')  # 结束日期
     order_by = request.args.get('order_by', 'trade_date')
@@ -277,6 +278,13 @@ def trades():
         order_by=order_by,
         order=order
     )
+
+    # 应用核销状态筛选（默认显示未核销）
+    if is_billed_filter == 'yes':
+        all_trades = [t for t in all_trades if t.is_billed]
+    elif is_billed_filter == 'no':
+        all_trades = [t for t in all_trades if not t.is_billed]
+    # 'all' 则显示全部
 
     # 应用关联PO筛选
     if has_po_filter == 'yes':
@@ -342,6 +350,7 @@ def trades():
                           current_status=status_filter,
                           current_product=product_filter,
                           current_has_po=has_po_filter,
+                          current_is_billed=is_billed_filter,
                           current_start_date=start_date,
                           current_end_date=end_date,
                           current_order_by=order_by,
@@ -746,12 +755,12 @@ def import_sync():
 
     if 'file' not in request.files:
         flash('没有上传文件', 'error')
-        return redirect(url_for('export_sync'))
+        return redirect(url_for('import_sync'))
 
     file = request.files['file']
     if file.filename == '':
         flash('没有选择文件', 'error')
-        return redirect(url_for('export_sync'))
+        return redirect(url_for('import_sync'))
 
     # 检查文件类型
     is_db_file = file.filename.endswith('.db')
@@ -759,7 +768,7 @@ def import_sync():
 
     if not (is_db_file or is_json_file):
         flash('请上传数据库文件(.db)或JSON文件(.json)', 'error')
-        return redirect(url_for('export_sync'))
+        return redirect(url_for('import_sync'))
 
     try:
         import tempfile
