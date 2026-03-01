@@ -1,19 +1,19 @@
 /* ========================================
-   期货交易记录系统 - CATL 蓝色主题
-   参考 CATL (宁德时代) 品牌色设计
+   期货交易记录系统 - 蓝色主题
+   参考品牌色设计
    ======================================== */
 
 /* === 字体设置 === */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
 
 :root {
-    /* CATL 蓝色系 - 品牌色 #0028AA */
-    --catl-blue: #0028AA;
-    --catl-blue-dark: #001E8A;
-    --catl-blue-light: #0034C0;
-    --catl-blue-pale: #E8F0FA;
-    --catl-blue-tint: #D4E2F5;
-    --catl-blue-bg: #F5F8FD;
+    /* 蓝色系 - 品牌色 #0028AA */
+    --brand-blue: #0028AA;
+    --brand-blue-dark: #001E8A;
+    --brand-blue-light: #0034C0;
+    --brand-blue-pale: #E8F0FA;
+    --brand-blue-tint: #D4E2F5;
+    --brand-blue-bg: #F5F8FD;
 
     /* 辅助蓝色 */
     --blue-50: #F0F6FF;
@@ -155,7 +155,7 @@ body {
 .stat-card:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow-card-hover);
-    border-color: var(--catl-blue-tint);
+    border-color: var(--brand-blue-tint);
 }
 
 .stat-card:hover::before {
@@ -174,7 +174,7 @@ body {
 }
 
 .stat-card .icon-wrapper svg {
-    color: var(--catl-blue);
+    color: var(--brand-blue);
 }
 
 .stat-card .stat-value {
@@ -238,15 +238,15 @@ body {
 }
 
 .data-table thead th {
-    background: var(--catl-blue-bg);
-    color: var(--catl-blue);
+    background: var(--brand-blue-bg);
+    color: var(--brand-blue);
     font-weight: 600;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding: 14px 16px;
     text-align: left;
-    border-bottom: 1px solid var(--catl-blue-tint);
+    border-bottom: 1px solid var(--brand-blue-tint);
 }
 
 .data-table thead th:first-child {
@@ -269,7 +269,7 @@ body {
 }
 
 .data-table tbody tr:hover {
-    background: var(--catl-blue-bg);
+    background: var(--brand-blue-bg);
 }
 
 .data-table tbody tr:last-child td {
@@ -370,9 +370,9 @@ body {
 }
 
 .btn-secondary:hover {
-    background: var(--catl-blue-bg);
-    color: var(--catl-blue);
-    border-color: var(--catl-blue-tint);
+    background: var(--brand-blue-bg);
+    color: var(--brand-blue);
+    border-color: var(--brand-blue-tint);
 }
 
 .btn-sm {
@@ -397,7 +397,7 @@ body {
 .form-input:focus,
 .form-select:focus {
     outline: none;
-    border-color: var(--catl-blue);
+    border-color: var(--brand-blue);
     box-shadow: 0 0 0 3px rgba(0, 40, 170, 0.1);
 }
 
@@ -474,7 +474,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--catl-blue);
+    background: var(--brand-blue);
 }
 
 /* === 动画 === */
@@ -558,13 +558,13 @@ footer p {
 }
 
 .text-blue-600 {
-    color: var(--catl-blue);
+    color: var(--brand-blue);
 }
 
 .text-blue-700 {
-    color: var(--catl-blue-dark);
+    color: var(--brand-blue-dark);
 }
 
 .hover\:text-blue-700:hover {
-    color: var(--catl-blue-dark);
+    color: var(--brand-blue-dark);
 }
