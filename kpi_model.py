@@ -14,10 +14,12 @@ class KPIRecord:
     product_name: str = None  # 品种：碳酸锂/氢氧化锂
     purchase_quantity: Optional[float] = None  # 采购量（吨）
     purchase_price: Optional[float] = None  # 采购均价
-    inventory_quantity: Optional[float] = None  # 库存数量（吨）
-    inventory_cost: Optional[float] = None  # 库存成本
+    inventory_quantity: Optional[float] = None  # 库存数量（吨）- 已废弃，使用monthly_inventory
+    inventory_cost: Optional[float] = None  # 库存成本 - 已废弃
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    # 非数据库字段 - 每月总库存（从monthly_inventory表获取）
+    total_inventory: Optional[float] = None
 
     def __post_init__(self):
         """初始化后处理"""
@@ -123,6 +125,16 @@ class KPIDB:
 
             conn.commit()
 
+            # 创建每月库存表
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS monthly_inventory (
+                    month TEXT PRIMARY KEY,
+                    inventory_quantity REAL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+            conn.commit()
+
     def create_record(self, record):
         """创建新记录"""
         with self.get_connection() as conn:
@@ -196,13 +208,20 @@ class KPIDB:
         products = ['碳酸锂', '氢氧化锂']
         records = []
 
+        # 获取所有月度库存
+        monthly_inventory = self.get_all_monthly_inventory(year)
+
         for month in range(1, 13):
             month_str = f"{year}-{month:02d}"
+            month_inventory = monthly_inventory.get(month_str)
+
             for product in products:
                 record = self.get_record(month_str, product)
                 if not record:
                     # 创建空记录
                     record = KPIRecord(month=month_str, product_name=product)
+                # 设置月度总库存（非数据库字段）
+                record.total_inventory = month_inventory
                 records.append(record)
 
         return records
@@ -264,6 +283,38 @@ class KPIDB:
         with self.get_connection() as conn:
             conn.execute('DELETE FROM kpi_records WHERE id = ?', (record_id,))
             conn.commit()
+
+    # ==================== 每月库存管理 ====================
+
+    def get_monthly_inventory(self, month):
+        """获取指定月份的库存"""
+        with self.get_connection() as conn:
+            row = conn.execute('SELECT inventory_quantity FROM monthly_inventory WHERE month = ?', (month,)).fetchone()
+            if row:
+                return row['inventory_quantity']
+            return None
+
+    def set_monthly_inventory(self, month, quantity):
+        """设置指定月份的库存"""
+        with self.get_connection() as conn:
+            updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute('''
+                INSERT INTO monthly_inventory (month, inventory_quantity, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(month) DO UPDATE SET
+                    inventory_quantity = excluded.inventory_quantity,
+                    updated_at = excluded.updated_at
+            ''', (month, quantity, updated_at))
+            conn.commit()
+
+    def get_all_monthly_inventory(self, year):
+        """获取指定年份的所有月度库存"""
+        with self.get_connection() as conn:
+            rows = conn.execute('SELECT month, inventory_quantity FROM monthly_inventory WHERE month LIKE ? ORDER BY month', (f'{year}%',)).fetchall()
+            result = {}
+            for row in rows:
+                result[row['month']] = row['inventory_quantity']
+            return result
 
 
 # 创建全局实例

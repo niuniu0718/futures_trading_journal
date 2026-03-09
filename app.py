@@ -703,9 +703,9 @@ def kpi():
             record.cost_saving = None
             record.cost_saving_pct = None
 
-        # 计算库存降本金额
-        if record.inventory_quantity and record.smm_avg_price and record.purchase_price:
-            record.inventory_saving = record.inventory_quantity * (record.smm_avg_price - record.purchase_price)
+        # 计算库存降本金额（使用总库存）
+        if record.total_inventory and record.smm_avg_price and record.purchase_price:
+            record.inventory_saving = record.total_inventory * (record.smm_avg_price - record.purchase_price)
         else:
             record.inventory_saving = None
 
@@ -727,8 +727,22 @@ def api_kpi_update():
         field = data.get('field')
         value = data.get('value')
 
+        # 特殊处理：月度库存
+        if field == 'monthly_inventory':
+            # 转换数值
+            if value is not None and value != '':
+                try:
+                    value = float(value)
+                except ValueError:
+                    return jsonify({'success': False, 'error': '数值格式错误'})
+            else:
+                value = None
+
+            kpi_db.set_monthly_inventory(month, value)
+            return jsonify({'success': True})
+
         # 验证字段
-        valid_fields = ['purchase_quantity', 'purchase_price', 'inventory_quantity', 'inventory_cost']
+        valid_fields = ['purchase_quantity', 'purchase_price']
         if field not in valid_fields:
             return jsonify({'success': False, 'error': f'无效的字段: {field}'})
 

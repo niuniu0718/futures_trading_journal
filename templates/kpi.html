@@ -76,27 +76,27 @@
                 {% endfor %}
             </tr>
 
-            <!-- 碳酸锂 - 库存 -->
-            <tr class="bg-indigo-50/20 hover:bg-indigo-50/40">
-                <td class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 sticky left-0 z-10">
-                    碳酸锂 - 库存(吨)
+            <!-- 库存(吨) -->
+            <tr class="bg-amber-50/30 hover:bg-amber-50/50">
+                <td class="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-100 sticky left-0 z-10">
+                    库存(吨)
                 </td>
                 {% for month in months %}
                 {% set record = None %}
                 {% for r in records %}
-                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set record = r %}{% endif %}
+                  {% if r.month == month %}{% set record = r %}{% endif %}
                 {% endfor %}
+                {% set month_inventory = record.total_inventory if record else None %}
                 <td class="px-3 py-2 text-center">
                     <input type="number"
-                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-amber-500 rounded"
                            data-month="{{ month }}"
-                           data-product="碳酸锂"
-                           data-field="inventory_quantity"
-                           value="{{ record.inventory_quantity if record and record.inventory_quantity else '' }}"
+                           data-field="monthly_inventory"
+                           value="{{ month_inventory if month_inventory else '' }}"
                            placeholder="-"
                            step="0.01"
                            onchange="updateCell(this)">
-                    {% if record and record.inventory_quantity and record.inventory_saving is not none %}
+                    {% if record and month_inventory and record.inventory_saving is not none %}
                     <div class="text-xs {% if record.inventory_saving > 0 %}text-green-600{% elif record.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
                         {% if record.inventory_saving != 0 %}
                         {{ '+' if record.inventory_saving > 0 else '' }}{{ format_currency(record.inventory_saving) }}
@@ -136,39 +136,6 @@
                     {% else %}
                     <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name if record else '碳酸锂' }}', null)">
                         点击设置价格
-                    </div>
-                    {% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-
-            <!-- 氢氧化锂 - 库存 -->
-            <tr class="bg-blue-50/20 hover:bg-blue-50/40">
-                <td class="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 sticky left-0 z-10">
-                    氢氧化锂 - 库存(吨)
-                </td>
-                {% for month in months %}
-                {% set record = None %}
-                {% for r in records %}
-                  {% if r.month == month and r.product_name == '氢氧化锂' %}{% set record = r %}{% endif %}
-                {% endfor %}
-                <td class="px-3 py-2 text-center">
-                    <input type="number"
-                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
-                           data-month="{{ month }}"
-                           data-product="氢氧化锂"
-                           data-field="inventory_quantity"
-                           value="{{ record.inventory_quantity if record and record.inventory_quantity else '' }}"
-                           placeholder="-"
-                           step="0.01"
-                           onchange="updateCell(this)">
-                    {% if record and record.inventory_quantity and record.inventory_saving is not none %}
-                    <div class="text-xs {% if record.inventory_saving > 0 %}text-green-600{% elif record.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
-                        {% if record.inventory_saving != 0 %}
-                        {{ '+' if record.inventory_saving > 0 else '' }}{{ format_currency(record.inventory_saving) }}
-                        {% else %}
-                        0
-                        {% endif %}
                     </div>
                     {% endif %}
                 </td>
