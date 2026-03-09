@@ -23,151 +23,204 @@
     </div>
 </div>
 
-<!-- 年度表格 -->
-<div class="bg-white shadow rounded-lg overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th rowspan="2" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">月份</th>
-                    <th colspan="2" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-indigo-50">碳酸锂</th>
-                    <th colspan="2" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50">氢氧化锂</th>
-                    <th rowspan="2" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">SMM当月均价</th>
-                </tr>
-                <tr>
-                    <!-- 碳酸锂列 -->
-                    <th class="px-4 py-2 text-center text-xs font-medium text-indigo-600 uppercase tracking-wider bg-indigo-50 border-l border-indigo-100">采购量(吨)</th>
-                    <th class="px-4 py-2 text-center text-xs font-medium text-indigo-600 uppercase tracking-wider bg-indigo-50 border-l border-indigo-100">库存(吨)</th>
-                    <!-- 氢氧化锂列 -->
-                    <th class="px-4 py-2 text-center text-xs font-medium text-blue-600 uppercase tracking-wider bg-blue-50 border-l border-blue-100">采购量(吨)</th>
-                    <th class="px-4 py-2 text-center text-xs font-medium text-blue-600 uppercase tracking-wider bg-blue-50 border-l border-blue-100">库存(吨)</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
+<!-- 年度表格 - 横向布局 -->
+<div class="bg-white shadow rounded-lg overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100 sticky left-0 z-10">项目</th>
                 {% for month in months %}
-                {% set lithium = None %}
-                {% set hydroxide = None %}
+                {% set month_num = month.split('-')[1] %}
+                <th class="px-3 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[90px]">{{ month_num }}月</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% set smm_prices_by_month = {} %}
+            {% for r in records %}
+              {% if r.smm_avg_price %}
+                {% set _ = smm_prices_by_month.update({r.month: r.smm_avg_price}) %}
+              {% endif %}
+            {% endfor %}
+
+            <!-- 碳酸锂 - 采购量 -->
+            <tr class="bg-indigo-50/30 hover:bg-indigo-50/50">
+                <td class="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 sticky left-0 z-10">
+                    碳酸锂 - 采购量(吨)
+                </td>
+                {% for month in months %}
+                {% set record = None %}
                 {% for r in records %}
-                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set lithium = r %}{% endif %}
-                  {% if r.month == month and r.product_name == '氢氧化锂' %}{% set hydroxide = r %}{% endif %}
+                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set record = r %}{% endif %}
                 {% endfor %}
-                {% set month_parts = month.split('-') %}
-                {% set month_display = month_parts[1] + '月' %}
-                {% set smm_price = lithium.smm_avg_price if lithium else None %}
-                <tr class="hover:bg-gray-50">
-                    <!-- 月份 -->
-                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50">
-                        {{ month_display }}
-                    </td>
+                <td class="px-3 py-2 text-center">
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="碳酸锂"
+                           data-field="purchase_quantity"
+                           value="{{ record.purchase_quantity if record and record.purchase_quantity else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateCell(this)">
+                    {% if record and record.purchase_price %}
+                    <div class="text-xs text-gray-500">{{ format_unit_price(record.purchase_price) }}</div>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
 
-                    <!-- 碳酸锂 - 采购量 -->
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-indigo-50/30 border-l border-indigo-100">
-                        <input type="number"
-                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
-                               data-month="{{ month }}"
-                               data-product="碳酸锂"
-                               data-field="purchase_quantity"
-                               value="{{ lithium.purchase_quantity if lithium and lithium.purchase_quantity else '' }}"
-                               placeholder="-"
-                               step="0.01"
-                               onchange="updateCell(this)">
-                        {% if lithium and lithium.purchase_price %}
-                        <div class="text-xs text-gray-500 text-center">{{ format_unit_price(lithium.purchase_price) }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- 碳酸锂 - 库存 -->
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-indigo-50/30 border-l border-indigo-100">
-                        <input type="number"
-                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
-                               data-month="{{ month }}"
-                               data-product="碳酸锂"
-                               data-field="inventory_quantity"
-                               value="{{ lithium.inventory_quantity if lithium and lithium.inventory_quantity else '' }}"
-                               placeholder="-"
-                               step="0.01"
-                               onchange="updateCell(this)">
-                        {% if lithium and lithium.inventory_quantity and lithium.cost_saving is not none %}
-                        <div class="text-xs {% if lithium.inventory_saving and lithium.inventory_saving > 0 %}text-green-600{% elif lithium.inventory_saving and lithium.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %} text-center">
-                            {% if lithium.inventory_saving and lithium.inventory_saving != 0 %}
-                                {{ '+' if lithium.inventory_saving > 0 else '' }}{{ format_currency(lithium.inventory_saving) }}
-                            {% else %}
-                                0
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </td>
-
-                    <!-- 氢氧化锂 - 采购量 -->
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-blue-50/30 border-l border-blue-100">
-                        <input type="number"
-                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
-                               data-month="{{ month }}"
-                               data-product="氢氧化锂"
-                               data-field="purchase_quantity"
-                               value="{{ hydroxide.purchase_quantity if hydroxide and hydroxide.purchase_quantity else '' }}"
-                               placeholder="-"
-                               step="0.01"
-                               onchange="updateCell(this)">
-                        {% if hydroxide and hydroxide.purchase_price %}
-                        <div class="text-xs text-gray-500 text-center">{{ format_unit_price(hydroxide.purchase_price) }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- 氢氧化锂 - 库存 -->
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-blue-50/30 border-l border-blue-100">
-                        <input type="number"
-                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
-                               data-month="{{ month }}"
-                               data-product="氢氧化锂"
-                               data-field="inventory_quantity"
-                               value="{{ hydroxide.inventory_quantity if hydroxide and hydroxide.inventory_quantity else '' }}"
-                               placeholder="-"
-                               step="0.01"
-                               onchange="updateCell(this)">
-                        {% if hydroxide and hydroxide.inventory_quantity and hydroxide.cost_saving is not none %}
-                        <div class="text-xs {% if hydroxide.inventory_saving and hydroxide.inventory_saving > 0 %}text-green-600{% elif hydroxide.inventory_saving and hydroxide.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %} text-center">
-                            {% if hydroxide.inventory_saving and hydroxide.inventory_saving != 0 %}
-                                {{ '+' if hydroxide.inventory_saving > 0 else '' }}{{ format_currency(hydroxide.inventory_saving) }}
-                            {% else %}
-                                0
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </td>
-
-                    <!-- SMM均价 -->
-                    <td class="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 bg-gray-50">
-                        {% if smm_price %}
-                            <span class="font-medium">{{ format_unit_price(smm_price) }}</span>
-                            {% if lithium and lithium.cost_saving_pct is not none %}
-                            <div class="text-xs {% if lithium.cost_saving_pct > 0 %}text-green-600{% elif lithium.cost_saving_pct < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
-                                {{ '+' if lithium.cost_saving_pct > 0 else '' }}{{ "%.2f"|format(lithium.cost_saving_pct) }}%
-                            </div>
-                            {% endif %}
+            <!-- 碳酸锂 - 库存 -->
+            <tr class="bg-indigo-50/20 hover:bg-indigo-50/40">
+                <td class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 sticky left-0 z-10">
+                    碳酸锂 - 库存(吨)
+                </td>
+                {% for month in months %}
+                {% set record = None %}
+                {% for r in records %}
+                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set record = r %}{% endif %}
+                {% endfor %}
+                <td class="px-3 py-2 text-center">
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="碳酸锂"
+                           data-field="inventory_quantity"
+                           value="{{ record.inventory_quantity if record and record.inventory_quantity else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateCell(this)">
+                    {% if record and record.inventory_quantity and record.inventory_saving is not none %}
+                    <div class="text-xs {% if record.inventory_saving > 0 %}text-green-600{% elif record.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                        {% if record.inventory_saving != 0 %}
+                        {{ '+' if record.inventory_saving > 0 else '' }}{{ format_currency(record.inventory_saving) }}
                         {% else %}
-                            <span class="text-gray-400">-</span>
+                        0
                         {% endif %}
-                    </td>
-                </tr>
+                    </div>
+                    {% endif %}
+                </td>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+            </tr>
+
+            <!-- 氢氧化锂 - 采购量 -->
+            <tr class="bg-blue-50/30 hover:bg-blue-50/50">
+                <td class="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 sticky left-0 z-10">
+                    氢氧化锂 - 采购量(吨)
+                </td>
+                {% for month in months %}
+                {% set record = None %}
+                {% for r in records %}
+                  {% if r.month == month and r.product_name == '氢氧化锂' %}{% set record = r %}{% endif %}
+                {% endfor %}
+                <td class="px-3 py-2 text-center">
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="氢氧化锂"
+                           data-field="purchase_quantity"
+                           value="{{ record.purchase_quantity if record and record.purchase_quantity else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateCell(this)">
+                    {% if record and record.purchase_price %}
+                    <div class="text-xs text-gray-500">{{ format_unit_price(record.purchase_price) }}</div>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+
+            <!-- 氢氧化锂 - 库存 -->
+            <tr class="bg-blue-50/20 hover:bg-blue-50/40">
+                <td class="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 sticky left-0 z-10">
+                    氢氧化锂 - 库存(吨)
+                </td>
+                {% for month in months %}
+                {% set record = None %}
+                {% for r in records %}
+                  {% if r.month == month and r.product_name == '氢氧化锂' %}{% set record = r %}{% endif %}
+                {% endfor %}
+                <td class="px-3 py-2 text-center">
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="氢氧化锂"
+                           data-field="inventory_quantity"
+                           value="{{ record.inventory_quantity if record and record.inventory_quantity else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateCell(this)">
+                    {% if record and record.inventory_quantity and record.inventory_saving is not none %}
+                    <div class="text-xs {% if record.inventory_saving > 0 %}text-green-600{% elif record.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                        {% if record.inventory_saving != 0 %}
+                        {{ '+' if record.inventory_saving > 0 else '' }}{{ format_currency(record.inventory_saving) }}
+                        {% else %}
+                        0
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+
+            <!-- SMM当月均价 -->
+            <tr class="bg-gray-50 hover:bg-gray-100">
+                <td class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 sticky left-0 z-10">
+                    SMM当月均价
+                </td>
+                {% for month in months %}
+                <td class="px-3 py-2 text-center text-sm">
+                    {% set smm_price = smm_prices_by_month.get(month) %}
+                    {% if smm_price %}
+                        <div class="font-medium text-gray-900">{{ format_unit_price(smm_price) }}</div>
+                    {% else %}
+                        <span class="text-gray-400">-</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+
+            <!-- 降本比例 -->
+            <tr class="bg-gray-50 hover:bg-gray-100">
+                <td class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 sticky left-0 z-10">
+                    降本比例
+                </td>
+                {% for month in months %}
+                {% set record = None %}
+                {% for r in records %}
+                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set record = r %}{% endif %}
+                {% endfor %}
+                <td class="px-3 py-2 text-center text-sm">
+                    {% if record and record.cost_saving_pct is not none %}
+                    <span class="{% if record.cost_saving_pct > 0 %}text-green-600 font-semibold{% elif record.cost_saving_pct < 0 %}text-red-600 font-semibold{% else %}text-gray-600{% endif %}">
+                        {{ '+' if record.cost_saving_pct > 0 else '' }}{{ "%.2f"|format(record.cost_saving_pct) }}%
+                    </span>
+                    {% else %}
+                        <span class="text-gray-400">-</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+        </tbody>
+    </table>
 </div>
 
 <!-- 图例说明 -->
 <div class="mt-6 bg-white shadow rounded-lg p-4">
     <h3 class="text-sm font-medium text-gray-700 mb-2">说明</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs text-gray-600">
+        <div><span class="text-indigo-600 font-medium">蓝色行</span>：碳酸锂相关数据</div>
+        <div><span class="text-blue-600 font-medium">浅蓝行</span>：氢氧化锂相关数据</div>
         <div><span class="text-green-600 font-medium">绿色数值</span>：降本（采购价低于SMM均价）</div>
         <div><span class="text-red-600 font-medium">红色数值</span>：溢价（采购价高于SMM均价）</div>
-        <div><span class="text-gray-500">点击单元格</span>：可直接编辑数值</div>
+    </div>
+    <div class="mt-2 text-xs text-gray-500">
+        * 点击单元格可直接编辑数值，采购价显示在采购量下方
     </div>
 </div>
 
 <!-- 采购均价编辑模态框 -->
-<div id="priceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+<div id="priceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
             <h3 id="priceModalTitle" class="text-lg font-medium text-gray-900">编辑采购均价</h3>
@@ -252,7 +305,7 @@ function openPriceModal(month, product, currentPrice) {
     document.getElementById('priceMonth').value = month;
     document.getElementById('priceProduct').value = product;
     document.getElementById('priceValue').value = currentPrice || '';
-    document.getElementById('priceModalTitle').textContent = `${month} ${product} - 编辑采购均价`;
+    document.getElementById('priceModalTitle').textContent = `编辑采购均价 - ${month} ${product}`;
     document.getElementById('priceModal').classList.remove('hidden');
     document.getElementById('priceValue').focus();
 }

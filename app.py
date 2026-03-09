@@ -712,7 +712,9 @@ def kpi():
     return render_template('kpi.html',
                           records=records,
                           year=year,
-                          months=[f"{year}-{m:02d}" for m in range(1, 13)])
+                          months=[f"{year}-{m:02d}" for m in range(1, 13)],
+                          format_unit_price=format_unit_price,
+                          format_currency=format_currency)
 
 
 @app.route('/api/kpi/update', methods=['POST'])
