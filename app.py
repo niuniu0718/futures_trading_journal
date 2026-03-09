@@ -774,6 +774,67 @@ def api_kpi_smm_price():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/api/kpi/smm_price/update', methods=['POST'])
+def api_kpi_smm_price_update():
+    """API: 更新SMM价格（用于KPI表格）"""
+    try:
+        data = request.get_json()
+        month = data.get('month')
+        value = data.get('value')
+
+        if not month:
+            return jsonify({'success': False, 'error': '缺少月份参数'})
+
+        # 转换数值
+        if value is not None and value != '':
+            try:
+                value = float(value)
+            except ValueError:
+                return jsonify({'success': False, 'error': '数值格式错误'})
+        else:
+            return jsonify({'success': False, 'error': 'SMM价格不能为空'})
+
+        # 解析月份
+        year, month_num = map(int, month.split('-'))
+
+        # 获取该月最后一天作为日期
+        import calendar
+        last_day = calendar.monthrange(year, month_num)[1]
+        price_date = f"{year}-{month_num:02d}-{last_day:02d}"
+
+        # 检查该月是否已有SMM价格记录
+        smm_list = db.get_smm_prices_by_month(year, month_num)
+
+        if smm_list:
+            # 更新现有记录（取第一条）
+            existing = smm_list[0]
+            # 创建新的SMM价格对象
+            from smm_model import SMMPrice
+            updated = SMMPrice(
+                id=existing.id,
+                price_date=price_date,
+                highest_price=value,  # 简化处理，使用相同值
+                lowest_price=value,
+                average_price=value
+            )
+            db.update_smm_price(updated)
+        else:
+            # 创建新记录
+            from smm_model import SMMPrice
+            new_smm = SMMPrice(
+                price_date=price_date,
+                highest_price=value,
+                lowest_price=value,
+                average_price=value
+            )
+            db.create_smm_price(new_smm)
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"更新SMM价格失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @app.route('/api/smm_month_price')
 def api_smm_month_price():
     """获取指定月份的SMM均价"""

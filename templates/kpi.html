@@ -63,8 +63,14 @@
                            placeholder="-"
                            step="0.01"
                            onchange="updateCell(this)">
-                    {% if record and record.purchase_price %}
-                    <div class="text-xs text-gray-500">{{ format_unit_price(record.purchase_price) }}</div>
+                    {% if record and record.purchase_price is not none %}
+                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name }}', {{ record.purchase_price }})">
+                        {{ format_unit_price(record.purchase_price) }}
+                    </div>
+                    {% else %}
+                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name if record else '碳酸锂' }}', null)">
+                        点击设置价格
+                    </div>
                     {% endif %}
                 </td>
                 {% endfor %}
@@ -123,8 +129,14 @@
                            placeholder="-"
                            step="0.01"
                            onchange="updateCell(this)">
-                    {% if record and record.purchase_price %}
-                    <div class="text-xs text-gray-500">{{ format_unit_price(record.purchase_price) }}</div>
+                    {% if record and record.purchase_price is not none %}
+                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name }}', {{ record.purchase_price }})">
+                        {{ format_unit_price(record.purchase_price) }}
+                    </div>
+                    {% else %}
+                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name if record else '碳酸锂' }}', null)">
+                        点击设置价格
+                    </div>
                     {% endif %}
                 </td>
                 {% endfor %}
@@ -169,13 +181,17 @@
                     SMM当月均价
                 </td>
                 {% for month in months %}
+                {% set smm_price = smm_prices_by_month.get(month) %}
                 <td class="px-3 py-2 text-center text-sm">
-                    {% set smm_price = smm_prices_by_month.get(month) %}
-                    {% if smm_price %}
-                        <div class="font-medium text-gray-900">{{ format_unit_price(smm_price) }}</div>
-                    {% else %}
-                        <span class="text-gray-400">-</span>
-                    {% endif %}
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-gray-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="SMM"
+                           data-field="smm_price"
+                           value="{{ smm_price if smm_price else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateSMMPrice(this)">
                 </td>
                 {% endfor %}
             </tr>
@@ -266,6 +282,42 @@ async function updateCell(input) {
                 month: month,
                 product_name: product,
                 field: field,
+                value: value
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            // 显示保存成功提示（短暂高亮）
+            input.classList.add('bg-green-100');
+            setTimeout(() => input.classList.remove('bg-green-100'), 500);
+
+            // 刷新页面以更新计算值
+            setTimeout(() => location.reload(), 300);
+        } else {
+            alert('保存失败: ' + (data.error || '未知错误'));
+            input.value = input.dataset.previousValue || '';
+        }
+    } catch (error) {
+        console.error('保存失败:', error);
+        alert('保存失败');
+        input.value = input.dataset.previousValue || '';
+    }
+}
+
+// 更新SMM价格
+async function updateSMMPrice(input) {
+    const month = input.dataset.month;
+    let value = input.value;
+
+    if (value === '') value = null;
+
+    try {
+        const response = await fetch('/api/kpi/smm_price/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                month: month,
                 value: value
             })
         });
