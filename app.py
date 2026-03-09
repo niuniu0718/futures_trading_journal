@@ -671,111 +671,105 @@ def delete_billing(billing_id):
 
 @app.route('/kpi')
 def kpi():
-    """KPI追踪主页"""
+    """KPI追踪主页 - 年度表格视图"""
     from datetime import datetime
 
-    # 获取筛选参数
-    product_filter = request.args.get('product', '')
+    # 获取年份参数，默认当前年份
+    year = request.args.get('year', str(datetime.now().year))
 
-    # 获取所有记录
-    records = kpi_db.get_all_records(product=product_filter if product_filter else None)
+    # 获取该年度所有记录（1-12月 × 碳酸锂/氢氧化锂）
+    records = kpi_db.get_yearly_records(year)
 
-    # 获取统计数据
-    current_month = datetime.now().strftime('%Y-%m')
-    stats = kpi_db.get_monthly_stats(month=current_month)
+    # 计算SMM均价和降本数据
+    smm_prices_by_month = {}  # 缓存SMM价格
 
-    # 计算降本数据
     for record in records:
-        # 获取该月SMM均价
-        year, month = record.month.split('-')
-        smm_prices = db.get_smm_prices_by_month(int(year), int(month))
-        if smm_prices:
-            smm_avg = sum(p.average_price for p in smm_prices) / len(smm_prices)
-            record.smm_avg_price = smm_avg
-            # 计算降本
-            if record.actual_avg_price:
-                record.cost_saving = smm_avg - record.actual_avg_price
-                record.cost_saving_pct = (record.cost_saving / smm_avg * 100) if smm_avg > 0 else 0
+        # 获取或计算该月SMM均价
+        if record.month not in smm_prices_by_month:
+            month_parts = record.month.split('-')
+            smm_list = db.get_smm_prices_by_month(int(month_parts[0]), int(month_parts[1]))
+            if smm_list:
+                smm_prices_by_month[record.month] = sum(p.average_price for p in smm_list) / len(smm_list)
             else:
-                record.cost_saving = None
-                record.cost_saving_pct = None
+                smm_prices_by_month[record.month] = None
+
+        record.smm_avg_price = smm_prices_by_month[record.month]
+
+        # 计算降本
+        if record.purchase_price and record.smm_avg_price:
+            record.cost_saving = record.smm_avg_price - record.purchase_price
+            record.cost_saving_pct = (record.cost_saving / record.smm_avg_price * 100) if record.smm_avg_price > 0 else 0
         else:
-            record.smm_avg_price = None
             record.cost_saving = None
             record.cost_saving_pct = None
 
-    # 获取品种列表
-    products = ['碳酸锂', '氢氧化锂']
+        # 计算库存降本金额
+        if record.inventory_quantity and record.smm_avg_price and record.purchase_price:
+            record.inventory_saving = record.inventory_quantity * (record.smm_avg_price - record.purchase_price)
+        else:
+            record.inventory_saving = None
 
     return render_template('kpi.html',
                           records=records,
-                          stats=stats,
-                          products=products,
-                          current_product=product_filter,
-                          current_month=current_month)
+                          year=year,
+                          months=[f"{year}-{m:02d}" for m in range(1, 13)])
 
 
-@app.route('/kpi/new', methods=['POST'])
-def new_kpi_record():
-    """创建新的KPI记录"""
+@app.route('/api/kpi/update', methods=['POST'])
+def api_kpi_update():
+    """API: 更新KPI记录的单个字段"""
     try:
-        record = KPIRecord(
-            month=request.form.get('month'),
-            product_name=request.form.get('product_name'),
-            actual_quantity=float(request.form.get('actual_quantity')) if request.form.get('actual_quantity') else None,
-            actual_avg_price=float(request.form.get('actual_avg_price')) if request.form.get('actual_avg_price') else None,
-            forecast_quantity=float(request.form.get('forecast_quantity')) if request.form.get('forecast_quantity') else None,
-            forecast_avg_price=float(request.form.get('forecast_avg_price')) if request.form.get('forecast_avg_price') else None
-        )
-        kpi_db.create_record(record)
-        flash('KPI记录创建成功', 'success')
+        data = request.get_json()
+        month = data.get('month')
+        product_name = data.get('product_name')
+        field = data.get('field')
+        value = data.get('value')
+
+        # 验证字段
+        valid_fields = ['purchase_quantity', 'purchase_price', 'inventory_quantity', 'inventory_cost']
+        if field not in valid_fields:
+            return jsonify({'success': False, 'error': f'无效的字段: {field}'})
+
+        # 转换数值
+        if value is not None and value != '':
+            try:
+                value = float(value)
+            except ValueError:
+                return jsonify({'success': False, 'error': '数值格式错误'})
+        else:
+            value = None
+
+        # 更新或创建记录
+        record = kpi_db.update_or_create(month, product_name, **{field: value})
+
+        return jsonify({
+            'success': True,
+            'record': record.to_dict() if record and record.id else None
+        })
     except Exception as e:
-        logger.error(f"创建KPI记录失败: {e}")
-        flash(f'创建失败: {str(e)}', 'error')
-
-    return redirect(url_for('kpi'))
+        logger.error(f"更新KPI记录失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 
-@app.route('/kpi/<int:record_id>/edit', methods=['GET', 'POST'])
-def edit_kpi_record(record_id):
-    """编辑KPI记录"""
-    record = kpi_db.get_record_by_id(record_id)
+@app.route('/api/kpi/smm_price')
+def api_kpi_smm_price():
+    """API: 获取指定月份的SMM均价"""
+    month = request.args.get('month')
+    if not month:
+        return jsonify({'success': False, 'error': '缺少月份参数'})
 
-    if not record:
-        flash('记录不存在', 'error')
-        return redirect(url_for('kpi'))
-
-    if request.method == 'POST':
-        try:
-            record.month = request.form.get('month')
-            record.product_name = request.form.get('product_name')
-            record.actual_quantity = float(request.form.get('actual_quantity')) if request.form.get('actual_quantity') else None
-            record.actual_avg_price = float(request.form.get('actual_avg_price')) if request.form.get('actual_avg_price') else None
-            record.forecast_quantity = float(request.form.get('forecast_quantity')) if request.form.get('forecast_quantity') else None
-            record.forecast_avg_price = float(request.form.get('forecast_avg_price')) if request.form.get('forecast_avg_price') else None
-
-            kpi_db.update_record(record)
-            flash('KPI记录更新成功', 'success')
-            return redirect(url_for('kpi'))
-        except Exception as e:
-            logger.error(f"更新KPI记录失败: {e}")
-            flash(f'更新失败: {str(e)}', 'error')
-
-    # GET请求 - 返回JSON用于前端填充表单
-    return jsonify(record.to_dict())
-
-
-@app.route('/kpi/<int:record_id>/delete', methods=['POST'])
-def delete_kpi_record(record_id):
-    """删除KPI记录"""
     try:
-        kpi_db.delete_record(record_id)
-        flash('KPI记录删除成功', 'success')
-    except Exception as e:
-        logger.error(f"删除KPI记录失败: {e}")
-        flash(f'删除失败: {str(e)}', 'error')
+        year, month_num = map(int, month.split('-'))
+        smm_list = db.get_smm_prices_by_month(year, month_num)
 
-    return redirect(url_for('kpi'))
+        if smm_list:
+            avg_price = sum(p.average_price for p in smm_list) / len(smm_list)
+            return jsonify({'success': True, 'price': avg_price})
+        else:
+            return jsonify({'success': False, 'error': '该月份没有SMM价格数据'})
+    except Exception as e:
+        logger.error(f"获取SMM均价失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 
 @app.route('/api/smm_month_price')

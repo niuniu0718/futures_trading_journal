@@ -6,280 +6,189 @@
 <div class="md:flex md:items-center md:justify-between mb-6">
     <div class="flex-1 min-w-0">
         <h1 class="text-3xl font-bold text-gray-900">KPI追踪 (A+F)</h1>
-        <p class="mt-2 text-gray-600">追踪碳酸锂和氢氧化锂的采购情况，与SMM均价对比计算降本</p>
+        <p class="mt-2 text-gray-600">年度采购与库存追踪，点击表格单元格可直接编辑</p>
     </div>
     <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
-        <button onclick="openFormModal()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+        <select id="yearSelect" onchange="changeYear()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            {% for y in range(2024, 2027) %}
+            <option value="{{ y }}" {% if y == year|int %}selected{% endif %}>{{ y }}年</option>
+            {% endfor %}
+        </select>
+        <button onclick="refreshData()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
             <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            添加记录
+            刷新
         </button>
     </div>
 </div>
 
-<!-- 统计卡片 -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-    <!-- 本月实际采购 -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">本月实际采购</h3>
-        <div class="space-y-3">
-            {% for product in ['碳酸锂', '氢氧化锂'] %}
-                {% if product in stats %}
-                <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
-                    <span class="text-sm font-medium text-gray-700">{{ product }}</span>
-                    <div class="text-right">
-                        <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(stats[product].total_actual_qty) }} 吨</p>
-                        <p class="text-sm text-gray-500">{{ format_unit_price(stats[product].avg_actual_price) }}</p>
-                    </div>
-                </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- 本月预测 -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">本月预测</h3>
-        <div class="space-y-3">
-            {% for product in ['碳酸锂', '氢氧化锂'] %}
-                {% if product in stats %}
-                <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                    <span class="text-sm font-medium text-gray-700">{{ product }}</span>
-                    <div class="text-right">
-                        <p class="text-lg font-bold text-gray-900">{{ "%.2f"|format(stats[product].total_forecast_qty) }} 吨</p>
-                        <p class="text-sm text-gray-500">{{ format_unit_price(stats[product].avg_forecast_price) if stats[product].avg_forecast_price else '-' }}</p>
-                    </div>
-                </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- 降本达成 -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">降本达成 (vs SMM)</h3>
-        <div class="space-y-3">
-            {% for product in ['碳酸锂', '氢氧化锂'] %}
-                {% if product in stats and stats[product].avg_actual_price %}
-                <div class="flex justify-between items-center p-3 {% if stats[product].avg_actual_price %}bg-green-50{% else %}bg-gray-50{% endif %} rounded-lg">
-                    <span class="text-sm font-medium text-gray-700">{{ product }}</span>
-                    <div class="text-right">
-                        {% set smm_price = None %}
-                        {% for record in records if record.product_name == product and record.month == current_month %}
-                            {% if record.smm_avg_price %}
-                                {% set smm_price = record.smm_avg_price %}
-                                {% set saving = record.cost_saving %}
-                                {% set saving_pct = record.cost_saving_pct %}
-                            {% endif %}
-                        {% endfor %}
-                        {% if smm_price %}
-                            {% if saving > 0 %}
-                                <p class="text-lg font-bold text-green-600">-{{ format_currency(saving) }}/吨</p>
-                                <p class="text-sm text-green-600">{{ "%.2f"|format(saving_pct) }}%</p>
-                            {% elif saving < 0 %}
-                                <p class="text-lg font-bold text-red-600">+{{ format_currency(abs(saving)) }}/吨</p>
-                                <p class="text-sm text-red-600">{{ "%.2f"|format(saving_pct) }}%</p>
-                            {% else %}
-                                <p class="text-lg font-bold text-gray-600">0.00</p>
-                            {% endif %}
-                        {% else %}
-                            <p class="text-sm text-gray-400">无SMM数据</p>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-</div>
-
-<!-- 筛选器 -->
-<div class="bg-white shadow rounded-lg mb-6">
-    <div class="px-4 py-5 sm:p-6">
-        <form action="{{ url_for('kpi') }}" method="GET" class="flex flex-wrap gap-4">
-            <div>
-                <label for="product" class="block text-sm font-medium text-gray-700">品种</label>
-                <select name="product" id="product" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                    <option value="">全部品种</option>
-                    {% for product in products %}
-                    <option value="{{ product }}" {% if current_product == product %}selected{% endif %}>{{ product }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="flex items-end gap-2">
-                <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    筛选
-                </button>
-                <a href="{{ url_for('kpi') }}" class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    清除
-                </a>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- KPI记录列表 -->
+<!-- 年度表格 -->
 <div class="bg-white shadow rounded-lg overflow-hidden">
-    {% if records %}
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">月份</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">品种</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">实际采购量</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">实际均价</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">预测采购量</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">预测均价</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMM均价</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">降本金额</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">降本比例</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                    <th rowspan="2" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">月份</th>
+                    <th colspan="2" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-indigo-50">碳酸锂</th>
+                    <th colspan="2" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50">氢氧化锂</th>
+                    <th rowspan="2" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">SMM当月均价</th>
+                </tr>
+                <tr>
+                    <!-- 碳酸锂列 -->
+                    <th class="px-4 py-2 text-center text-xs font-medium text-indigo-600 uppercase tracking-wider bg-indigo-50 border-l border-indigo-100">采购量(吨)</th>
+                    <th class="px-4 py-2 text-center text-xs font-medium text-indigo-600 uppercase tracking-wider bg-indigo-50 border-l border-indigo-100">库存(吨)</th>
+                    <!-- 氢氧化锂列 -->
+                    <th class="px-4 py-2 text-center text-xs font-medium text-blue-600 uppercase tracking-wider bg-blue-50 border-l border-blue-100">采购量(吨)</th>
+                    <th class="px-4 py-2 text-center text-xs font-medium text-blue-600 uppercase tracking-wider bg-blue-50 border-l border-blue-100">库存(吨)</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                {% for record in records %}
+                {% for month in months %}
+                {% set lithium = None %}
+                {% set hydroxide = None %}
+                {% for r in records %}
+                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set lithium = r %}{% endif %}
+                  {% if r.month == month and r.product_name == '氢氧化锂' %}{% set hydroxide = r %}{% endif %}
+                {% endfor %}
+                {% set month_parts = month.split('-') %}
+                {% set month_display = month_parts[1] + '月' %}
+                {% set smm_price = lithium.smm_avg_price if lithium else None %}
                 <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ record.month }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ record.product_name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ "%.2f"|format(record.actual_quantity) if record.actual_quantity else '-' }}
+                    <!-- 月份 -->
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50">
+                        {{ month_display }}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ format_unit_price(record.actual_avg_price) if record.actual_avg_price else '-' }}
+
+                    <!-- 碳酸锂 - 采购量 -->
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-indigo-50/30 border-l border-indigo-100">
+                        <input type="number"
+                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                               data-month="{{ month }}"
+                               data-product="碳酸锂"
+                               data-field="purchase_quantity"
+                               value="{{ lithium.purchase_quantity if lithium and lithium.purchase_quantity else '' }}"
+                               placeholder="-"
+                               step="0.01"
+                               onchange="updateCell(this)">
+                        {% if lithium and lithium.purchase_price %}
+                        <div class="text-xs text-gray-500 text-center">{{ format_unit_price(lithium.purchase_price) }}</div>
+                        {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ "%.2f"|format(record.forecast_quantity) if record.forecast_quantity else '-' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ format_unit_price(record.forecast_avg_price) if record.forecast_avg_price else '-' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ format_unit_price(record.smm_avg_price) if record.smm_avg_price else '<span class="text-gray-400">无数据</span>'|safe }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium
-                        {% if record.cost_saving is not none %}
-                            {% if record.cost_saving > 0 %}text-green-600
-                            {% elif record.cost_saving < 0 %}text-red-600
-                            {% else %}text-gray-600
+
+                    <!-- 碳酸锂 - 库存 -->
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-indigo-50/30 border-l border-indigo-100">
+                        <input type="number"
+                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                               data-month="{{ month }}"
+                               data-product="碳酸锂"
+                               data-field="inventory_quantity"
+                               value="{{ lithium.inventory_quantity if lithium and lithium.inventory_quantity else '' }}"
+                               placeholder="-"
+                               step="0.01"
+                               onchange="updateCell(this)">
+                        {% if lithium and lithium.inventory_quantity and lithium.cost_saving is not none %}
+                        <div class="text-xs {% if lithium.inventory_saving and lithium.inventory_saving > 0 %}text-green-600{% elif lithium.inventory_saving and lithium.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %} text-center">
+                            {% if lithium.inventory_saving and lithium.inventory_saving != 0 %}
+                                {{ '+' if lithium.inventory_saving > 0 else '' }}{{ format_currency(lithium.inventory_saving) }}
+                            {% else %}
+                                0
                             {% endif %}
-                        {% else %}text-gray-400
-                        {% endif %}">
-                        {% if record.cost_saving is not none %}
-                            {% if record.cost_saving > 0 %}-{{ format_currency(record.cost_saving) }}
-                            {% elif record.cost_saving < 0 %}+{{ format_currency(abs(record.cost_saving)) }}
-                            {% else %}0.00
-                            {% endif %}
-                        {% else %}-{% endif %}
+                        </div>
+                        {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium
-                        {% if record.cost_saving_pct is not none %}
-                            {% if record.cost_saving_pct > 0 %}text-green-600
-                            {% elif record.cost_saving_pct < 0 %}text-red-600
-                            {% else %}text-gray-600
-                            {% endif %}
-                        {% else %}text-gray-400
-                        {% endif %}">
-                        {% if record.cost_saving_pct is not none %}
-                            {% if record.cost_saving_pct > 0 %}{{ "%.2f"|format(record.cost_saving_pct) }}%
-                            {% elif record.cost_saving_pct < 0 %}{{ "%.2f"|format(record.cost_saving_pct) }}%
-                            {% else %}0.00%
-                            {% endif %}
-                        {% else %}-{% endif %}
+
+                    <!-- 氢氧化锂 - 采购量 -->
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-blue-50/30 border-l border-blue-100">
+                        <input type="number"
+                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
+                               data-month="{{ month }}"
+                               data-product="氢氧化锂"
+                               data-field="purchase_quantity"
+                               value="{{ hydroxide.purchase_quantity if hydroxide and hydroxide.purchase_quantity else '' }}"
+                               placeholder="-"
+                               step="0.01"
+                               onchange="updateCell(this)">
+                        {% if hydroxide and hydroxide.purchase_price %}
+                        <div class="text-xs text-gray-500 text-center">{{ format_unit_price(hydroxide.purchase_price) }}</div>
+                        {% endif %}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button onclick="editRecord({{ record.id }})" class="text-indigo-600 hover:text-indigo-900">编辑</button>
-                        <form action="{{ url_for('delete_kpi_record', record_id=record.id) }}" method="POST" class="inline" onsubmit="return confirm('确定要删除这条记录吗？');">
-                            <button type="submit" class="text-red-600 hover:text-red-900">删除</button>
-                        </form>
+
+                    <!-- 氢氧化锂 - 库存 -->
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 bg-blue-50/30 border-l border-blue-100">
+                        <input type="number"
+                               class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
+                               data-month="{{ month }}"
+                               data-product="氢氧化锂"
+                               data-field="inventory_quantity"
+                               value="{{ hydroxide.inventory_quantity if hydroxide and hydroxide.inventory_quantity else '' }}"
+                               placeholder="-"
+                               step="0.01"
+                               onchange="updateCell(this)">
+                        {% if hydroxide and hydroxide.inventory_quantity and hydroxide.cost_saving is not none %}
+                        <div class="text-xs {% if hydroxide.inventory_saving and hydroxide.inventory_saving > 0 %}text-green-600{% elif hydroxide.inventory_saving and hydroxide.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %} text-center">
+                            {% if hydroxide.inventory_saving and hydroxide.inventory_saving != 0 %}
+                                {{ '+' if hydroxide.inventory_saving > 0 else '' }}{{ format_currency(hydroxide.inventory_saving) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- SMM均价 -->
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 bg-gray-50">
+                        {% if smm_price %}
+                            <span class="font-medium">{{ format_unit_price(smm_price) }}</span>
+                            {% if lithium and lithium.cost_saving_pct is not none %}
+                            <div class="text-xs {% if lithium.cost_saving_pct > 0 %}text-green-600{% elif lithium.cost_saving_pct < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                                {{ '+' if lithium.cost_saving_pct > 0 else '' }}{{ "%.2f"|format(lithium.cost_saving_pct) }}%
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-gray-400">-</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    {% else %}
-    <div class="px-4 py-12 text-center">
-        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <h3 class="mt-2 text-sm font-medium text-gray-900">暂无KPI记录</h3>
-        <p class="mt-1 text-sm text-gray-500">开始添加KPI追踪记录吧</p>
-        <div class="mt-6">
-            <button onclick="openFormModal()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                添加第一条记录
-            </button>
-        </div>
-    </div>
-    {% endif %}
 </div>
 
-<!-- 添加/编辑表单模态框 -->
-<div id="formModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
-    <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+<!-- 图例说明 -->
+<div class="mt-6 bg-white shadow rounded-lg p-4">
+    <h3 class="text-sm font-medium text-gray-700 mb-2">说明</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-600">
+        <div><span class="text-green-600 font-medium">绿色数值</span>：降本（采购价低于SMM均价）</div>
+        <div><span class="text-red-600 font-medium">红色数值</span>：溢价（采购价高于SMM均价）</div>
+        <div><span class="text-gray-500">点击单元格</span>：可直接编辑数值</div>
+    </div>
+</div>
+
+<!-- 采购均价编辑模态框 -->
+<div id="priceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex justify-between items-center mb-4">
-            <h3 id="modalTitle" class="text-lg font-medium text-gray-900">添加KPI记录</h3>
-            <button onclick="closeFormModal()" class="text-gray-400 hover:text-gray-500">
+            <h3 id="priceModalTitle" class="text-lg font-medium text-gray-900">编辑采购均价</h3>
+            <button onclick="closePriceModal()" class="text-gray-400 hover:text-gray-500">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
-        <form id="kpiForm" action="{{ url_for('new_kpi_record') }}" method="POST" class="space-y-4">
-            <input type="hidden" id="recordId" name="id" value="">
+        <form onsubmit="savePrice(event)" class="space-y-4">
+            <input type="hidden" id="priceMonth">
+            <input type="hidden" id="priceProduct">
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label for="month" class="block text-sm font-medium text-gray-700">月份 *</label>
-                    <input type="month" id="month" name="month" required
-                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                </div>
-                <div>
-                    <label for="product_name" class="block text-sm font-medium text-gray-700">品种 *</label>
-                    <select id="product_name" name="product_name" required
-                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                        <option value="">请选择</option>
-                        <option value="碳酸锂">碳酸锂</option>
-                        <option value="氢氧化锂">氢氧化锂</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="border-t border-gray-200 pt-4">
-                <h4 class="text-sm font-medium text-gray-700 mb-3">实际数据 (Actual)</h4>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="actual_quantity" class="block text-sm font-medium text-gray-700">采购量（吨）</label>
-                        <input type="number" id="actual_quantity" name="actual_quantity" step="0.01" min="0"
-                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="actual_avg_price" class="block text-sm font-medium text-gray-700">均价（元/吨）</label>
-                        <input type="number" id="actual_avg_price" name="actual_avg_price" step="0.01" min="0"
-                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    </div>
-                </div>
-            </div>
-
-            <div class="border-t border-gray-200 pt-4">
-                <h4 class="text-sm font-medium text-gray-700 mb-3">预测数据 (Forecast)</h4>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="forecast_quantity" class="block text-sm font-medium text-gray-700">预测量（吨）</label>
-                        <input type="number" id="forecast_quantity" name="forecast_quantity" step="0.01" min="0"
-                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="forecast_avg_price" class="block text-sm font-medium text-gray-700">预测均价（元/吨）</label>
-                        <input type="number" id="forecast_avg_price" name="forecast_avg_price" step="0.01" min="0"
-                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    </div>
-                </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">采购均价（元/吨）</label>
+                <input type="number" id="priceValue" step="0.01" min="0" required
+                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             </div>
 
             <div class="flex justify-end space-x-3 pt-4 border-t">
-                <button type="button" onclick="closeFormModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">取消</button>
+                <button type="button" onclick="closePriceModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">取消</button>
                 <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">保存</button>
             </div>
         </form>
@@ -287,45 +196,119 @@
 </div>
 
 <script>
-function openFormModal() {
-    document.getElementById('modalTitle').textContent = '添加KPI记录';
-    document.getElementById('kpiForm').action = "{{ url_for('new_kpi_record') }}";
-    document.getElementById('kpiForm').reset();
-    document.getElementById('recordId').value = '';
-    document.getElementById('formModal').classList.remove('hidden');
-}
+// 更新单元格
+async function updateCell(input) {
+    const month = input.dataset.month;
+    const product = input.dataset.product;
+    const field = input.dataset.field;
+    let value = input.value;
 
-function closeFormModal() {
-    document.getElementById('formModal').classList.add('hidden');
-}
+    if (value === '') value = null;
 
-async function editRecord(recordId) {
     try {
-        const response = await fetch(`{{ url_for('edit_kpi_record', record_id=0) }}`.replace('0', recordId));
-        const record = await response.json();
+        const response = await fetch('/api/kpi/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                month: month,
+                product_name: product,
+                field: field,
+                value: value
+            })
+        });
 
-        document.getElementById('modalTitle').textContent = '编辑KPI记录';
-        document.getElementById('kpiForm').action = `{{ url_for('edit_kpi_record', record_id=0) }}`.replace('0', recordId);
-        document.getElementById('recordId').value = record.id;
-        document.getElementById('month').value = record.month;
-        document.getElementById('product_name').value = record.product_name;
-        document.getElementById('actual_quantity').value = record.actual_quantity || '';
-        document.getElementById('actual_avg_price').value = record.actual_avg_price || '';
-        document.getElementById('forecast_quantity').value = record.forecast_quantity || '';
-        document.getElementById('forecast_avg_price').value = record.forecast_avg_price || '';
+        const data = await response.json();
+        if (data.success) {
+            // 显示保存成功提示（短暂高亮）
+            input.classList.add('bg-green-100');
+            setTimeout(() => input.classList.remove('bg-green-100'), 500);
 
-        document.getElementById('formModal').classList.remove('hidden');
+            // 刷新页面以更新计算值
+            setTimeout(() => location.reload(), 300);
+        } else {
+            alert('保存失败: ' + (data.error || '未知错误'));
+            input.value = input.dataset.previousValue || '';
+        }
     } catch (error) {
-        console.error('加载记录失败:', error);
-        alert('加载记录失败');
+        console.error('保存失败:', error);
+        alert('保存失败');
+        input.value = input.dataset.previousValue || '';
+    }
+}
+
+// 切换年份
+function changeYear() {
+    const year = document.getElementById('yearSelect').value;
+    window.location.href = '/kpi?year=' + year;
+}
+
+// 刷新数据
+function refreshData() {
+    location.reload();
+}
+
+// 打开采购均价编辑模态框
+function openPriceModal(month, product, currentPrice) {
+    document.getElementById('priceMonth').value = month;
+    document.getElementById('priceProduct').value = product;
+    document.getElementById('priceValue').value = currentPrice || '';
+    document.getElementById('priceModalTitle').textContent = `${month} ${product} - 编辑采购均价`;
+    document.getElementById('priceModal').classList.remove('hidden');
+    document.getElementById('priceValue').focus();
+}
+
+// 关闭采购均价模态框
+function closePriceModal() {
+    document.getElementById('priceModal').classList.add('hidden');
+}
+
+// 保存采购均价
+async function savePrice(event) {
+    event.preventDefault();
+
+    const month = document.getElementById('priceMonth').value;
+    const product = document.getElementById('priceProduct').value;
+    let value = document.getElementById('priceValue').value;
+
+    if (value === '') value = null;
+
+    try {
+        const response = await fetch('/api/kpi/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                month: month,
+                product_name: product,
+                field: 'purchase_price',
+                value: value
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            closePriceModal();
+            location.reload();
+        } else {
+            alert('保存失败: ' + (data.error || '未知错误'));
+        }
+    } catch (error) {
+        console.error('保存失败:', error);
+        alert('保存失败');
     }
 }
 
 // 点击模态框外部关闭
-document.getElementById('formModal').addEventListener('click', function(e) {
+document.getElementById('priceModal').addEventListener('click', function(e) {
     if (e.target === this) {
-        closeFormModal();
+        closePriceModal();
     }
+});
+
+// 保存输入框的原始值
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('input[data-month]').forEach(input => {
+        input.dataset.previousValue = input.value;
+    });
 });
 </script>
 {% endblock %}
