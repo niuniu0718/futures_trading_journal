@@ -11,6 +11,7 @@ class SMMPrice:
     """SMM价格数据模型"""
     id: Optional[int] = None
     price_date: str = None
+    product_name: str = None  # 产品类型：碳酸锂/氢氧化锂
     highest_price: float = 0.0
     lowest_price: float = 0.0
     average_price: float = 0.0
@@ -29,6 +30,7 @@ class SMMPrice:
         return {
             'id': self.id,
             'price_date': self.price_date,
+            'product_name': self.product_name,
             'highest_price': self.highest_price,
             'lowest_price': self.lowest_price,
             'average_price': self.average_price,

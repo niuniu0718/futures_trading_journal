@@ -680,20 +680,20 @@ def kpi():
     # 获取该年度所有记录（1-12月 × 碳酸锂/氢氧化锂）
     records = kpi_db.get_yearly_records(year)
 
-    # 计算SMM均价和降本数据
-    smm_prices_by_month = {}  # 缓存SMM价格
+    # 计算SMM均价和降本数据 - 按产品分别计算
+    smm_prices_by_month = {}  # 格式: {月份_产品: 价格}
 
     for record in records:
-        # 获取或计算该月SMM均价
-        if record.month not in smm_prices_by_month:
+        key = record.month + '_' + record.product_name
+        if key not in smm_prices_by_month:
             month_parts = record.month.split('-')
-            smm_list = db.get_smm_prices_by_month(int(month_parts[0]), int(month_parts[1]))
+            smm_list = db.get_smm_prices_by_month(int(month_parts[0]), int(month_parts[1]), record.product_name)
             if smm_list:
-                smm_prices_by_month[record.month] = sum(p.average_price for p in smm_list) / len(smm_list)
+                smm_prices_by_month[key] = sum(p.average_price for p in smm_list) / len(smm_list)
             else:
-                smm_prices_by_month[record.month] = None
+                smm_prices_by_month[key] = None
 
-        record.smm_avg_price = smm_prices_by_month[record.month]
+        record.smm_avg_price = smm_prices_by_month[key]
 
         # 计算降本
         if record.purchase_price and record.smm_avg_price:
@@ -709,10 +709,31 @@ def kpi():
         else:
             record.inventory_saving = None
 
+    # 获取该年度所有月度目标、需求和年度客供比
+    monthly_targets = kpi_db.get_all_monthly_targets(year)
+    monthly_demands = kpi_db.get_all_monthly_demands(year)
+    yearly_customer_supply_ratio = kpi_db.get_yearly_customer_supply_ratio(year)
+
+    # 计算卡片看板数据
+    # 总需求：从数据库获取年度总需求
+    total_demand = kpi_db.get_yearly_total_demand(year)
+
+    # 总供给：总需求 × 客供比
+    total_supply = total_demand * yearly_customer_supply_ratio if total_demand is not None and yearly_customer_supply_ratio is not None else None
+
+    # 预计降本比例：临时使用一个固定值，等明细表设计好后再实现真实计算
+    estimated_cost_saving_pct = 5.2  # 临时占位值
+
     return render_template('kpi.html',
                           records=records,
                           year=year,
                           months=[f"{year}-{m:02d}" for m in range(1, 13)],
+                          monthly_targets=monthly_targets,
+                          monthly_demands=monthly_demands,
+                          yearly_customer_supply_ratio=yearly_customer_supply_ratio,
+                          total_demand=total_demand,
+                          total_supply=total_supply,
+                          estimated_cost_saving_pct=estimated_cost_saving_pct,
                           format_unit_price=format_unit_price,
                           format_currency=format_currency)
 
@@ -742,7 +763,7 @@ def api_kpi_update():
             return jsonify({'success': True})
 
         # 验证字段
-        valid_fields = ['target_quantity', 'purchase_quantity', 'purchase_price']
+        valid_fields = ['target_quantity', 'purchase_quantity', 'purchase_price', 'inventory_cost']
         if field not in valid_fields:
             return jsonify({'success': False, 'error': f'无效的字段: {field}'})
 
@@ -790,14 +811,15 @@ def api_kpi_smm_price():
 
 @app.route('/api/kpi/smm_price/update', methods=['POST'])
 def api_kpi_smm_price_update():
-    """API: 更新SMM价格（用于KPI表格）"""
+    """API: 更新KPI记录的SMM价格（与SMM价格页面的价格不同）"""
     try:
         data = request.get_json()
         month = data.get('month')
+        product_name = data.get('product_name')  # 碳酸锂 或 氢氧化锂
         value = data.get('value')
 
-        if not month:
-            return jsonify({'success': False, 'error': '缺少月份参数'})
+        if not month or not product_name:
+            return jsonify({'success': False, 'error': '缺少月份或产品参数'})
 
         # 转换数值
         if value is not None and value != '':
@@ -806,18 +828,19 @@ def api_kpi_smm_price_update():
             except ValueError:
                 return jsonify({'success': False, 'error': '数值格式错误'})
         else:
-            return jsonify({'success': False, 'error': 'SMM价格不能为空'})
+            value = None
 
-        # 解析月份
-        year, month_num = map(int, month.split('-'))
+        # 更新KPI记录的kpi_smm_price字段
+        record = kpi_db.get_record(month, product_name)
+        if record:
+            kpi_db.update_or_create(month, product_name, kpi_smm_price=value)
+        else:
+            kpi_db.update_or_create(month, product_name, kpi_smm_price=value)
 
-        # 获取该月最后一天作为日期
-        import calendar
-        last_day = calendar.monthrange(year, month_num)[1]
-        price_date = f"{year}-{month_num:02d}-{last_day:02d}"
-
-        # 检查该月是否已有SMM价格记录
-        smm_list = db.get_smm_prices_by_month(year, month_num)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"更新KPI SMM价格失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
         if smm_list:
             # 更新现有记录（取第一条）
@@ -846,6 +869,119 @@ def api_kpi_smm_price_update():
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"更新SMM价格失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/kpi/monthly_target/update', methods=['POST'])
+def api_kpi_monthly_target_update():
+    """API: 更新月度目标量"""
+    try:
+        data = request.get_json()
+        month = data.get('month')
+        value = data.get('value')
+
+        if not month:
+            return jsonify({'success': False, 'error': '缺少月份参数'})
+
+        # 转换数值
+        if value is not None and value != '':
+            try:
+                value = float(value)
+            except ValueError:
+                return jsonify({'success': False, 'error': '数值格式错误'})
+        else:
+            value = None
+
+        kpi_db.set_monthly_target(month, value)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"更新月度目标失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/kpi/monthly_demand/update', methods=['POST'])
+def api_kpi_monthly_demand_update():
+    """API: 更新月度需求量（并自动计算目标量）"""
+    try:
+        data = request.get_json()
+        month = data.get('month')
+        value = data.get('value')
+
+        if not month:
+            return jsonify({'success': False, 'error': '缺少月份参数'})
+
+        # 转换数值
+        if value is not None and value != '':
+            try:
+                value = float(value)
+            except ValueError:
+                return jsonify({'success': False, 'error': '数值格式错误'})
+        else:
+            value = None
+
+        kpi_db.set_monthly_demand(month, value)
+        # 自动计算目标量
+        year = month.split('-')[0]
+        kpi_db.calculate_target_from_demand_and_yearly_ratio(year)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"更新月度需求失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/kpi/yearly_customer_supply_ratio/update', methods=['POST'])
+def api_kpi_yearly_customer_supply_ratio_update():
+    """API: 更新年度客供比（并自动计算该年所有目标量）"""
+    try:
+        data = request.get_json()
+        year = data.get('year')
+        value = data.get('value')
+
+        if not year:
+            return jsonify({'success': False, 'error': '缺少年份参数'})
+
+        # 转换数值
+        if value is not None and value != '':
+            try:
+                value = float(value)
+            except ValueError:
+                return jsonify({'success': False, 'error': '数值格式错误'})
+        else:
+            value = None
+
+        kpi_db.set_yearly_customer_supply_ratio(year, value)
+        # 自动计算该年所有月份的目标量
+        kpi_db.calculate_target_from_demand_and_yearly_ratio(year)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"更新客供比失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/kpi/yearly_total_demand/update', methods=['POST'])
+def api_kpi_yearly_total_demand_update():
+    """API: 更新年度总需求"""
+    try:
+        data = request.get_json()
+        year = data.get('year')
+        value = data.get('value')
+
+        if not year:
+            return jsonify({'success': False, 'error': '缺少年份参数'})
+
+        # 转换数值
+        if value is not None and value != '':
+            try:
+                value = float(value)
+            except ValueError:
+                return jsonify({'success': False, 'error': '数值格式错误'})
+        else:
+            value = None
+
+        kpi_db.set_yearly_total_demand(year, value)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"更新年度总需求失败: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -1031,9 +1167,17 @@ def import_data():
 
 @app.route('/smm_prices')
 def smm_prices():
-    """SMM价格管理页面"""
-    prices = db.get_all_smm_prices()
-    return render_template('smm_prices.html', prices=prices)
+    """SMM价格管理页面 - 默认显示碳酸锂"""
+    return redirect(url_for('smm_prices_product', product_name='碳酸锂'))
+
+
+@app.route('/smm_prices/<product_name>')
+def smm_prices_product(product_name):
+    """SMM价格管理页面 - 按产品分类"""
+    if product_name not in ['碳酸锂', '氢氧化锂']:
+        product_name = '碳酸锂'
+    prices = db.get_all_smm_prices(product_name=product_name)
+    return render_template('smm_prices.html', prices=prices, product_name=product_name)
 
 
 @app.route('/smm_prices/new', methods=['GET', 'POST'])
@@ -1043,13 +1187,14 @@ def new_smm_price():
         try:
             smm_price = SMMPrice(
                 price_date=request.form['price_date'],
+                product_name=request.form.get('product_name', '碳酸锂'),
                 highest_price=float(request.form['highest_price']),
                 lowest_price=float(request.form['lowest_price']),
                 average_price=float(request.form['average_price'])
             )
             db.create_smm_price(smm_price)
             flash('SMM价格记录创建成功', 'success')
-            return redirect(url_for('smm_prices'))
+            return redirect(url_for('smm_prices_product', product_name=smm_price.product_name))
         except Exception as e:
             logger.error(f"创建SMM价格失败: {e}")
             flash(f'创建失败: {str(e)}', 'error')

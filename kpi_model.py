@@ -15,12 +15,19 @@ class KPIRecord:
     target_quantity: Optional[float] = None  # 目标量（吨）
     purchase_quantity: Optional[float] = None  # 采购量（吨）
     purchase_price: Optional[float] = None  # 采购均价
+    kpi_smm_price: Optional[float] = None  # KPI页面编辑的SMM价格
     inventory_quantity: Optional[float] = None  # 库存数量（吨）- 已废弃，使用monthly_inventory
     inventory_cost: Optional[float] = None  # 库存成本 - 已废弃
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     # 非数据库字段 - 每月总库存（从monthly_inventory表获取）
     total_inventory: Optional[float] = None
+    # 非数据库字段 - 从SMM价格页面获取的SMM均价
+    smm_avg_price: Optional[float] = None
+    # 非数据库字段 - 降本金额
+    cost_saving: Optional[float] = None
+    # 非数据库字段 - 降本比例
+    cost_saving_pct: Optional[float] = None
 
     def __post_init__(self):
         """初始化后处理"""
@@ -76,6 +83,7 @@ class KPIDB:
                         target_quantity REAL,
                         purchase_quantity REAL,
                         purchase_price REAL,
+                        kpi_smm_price REAL,
                         inventory_quantity REAL,
                         inventory_cost REAL,
                         created_at TEXT NOT NULL,
@@ -91,6 +99,10 @@ class KPIDB:
                 if 'target_quantity' not in columns:
                     # 添加target_quantity字段
                     conn.execute('ALTER TABLE kpi_records ADD COLUMN target_quantity REAL')
+
+                if 'kpi_smm_price' not in columns:
+                    # 添加kpi_smm_price字段
+                    conn.execute('ALTER TABLE kpi_records ADD COLUMN kpi_smm_price REAL')
 
                 # 如果有旧字段但没有新字段，进行迁移
                 if 'actual_quantity' in columns and 'purchase_quantity' not in columns:
@@ -109,6 +121,7 @@ class KPIDB:
                             target_quantity REAL,
                             purchase_quantity REAL,
                             purchase_price REAL,
+                            kpi_smm_price REAL,
                             inventory_quantity REAL,
                             inventory_cost REAL,
                             created_at TEXT NOT NULL,
@@ -126,7 +139,8 @@ class KPIDB:
                                  created_at, updated_at)
                                 VALUES (?, ?, ?, ?, ?, ?)
                             ''', (row['month'], row['product_name'],
-                                  row.get('actual_quantity'), row.get('actual_avg_price'),
+                                  row['actual_quantity'] if 'actual_quantity' in row.keys() else None,
+                                  row['actual_avg_price'] if 'actual_avg_price' in row.keys() else None,
                                   row['created_at'], row['updated_at']))
                         except Exception:
                             pass  # 跳过重复键等错误
@@ -143,16 +157,56 @@ class KPIDB:
             ''')
             conn.commit()
 
+            # 创建每月目标表
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS monthly_targets (
+                    month TEXT PRIMARY KEY,
+                    target_quantity REAL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+            conn.commit()
+
+            # 创建每月需求表
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS monthly_demands (
+                    month TEXT PRIMARY KEY,
+                    demand_quantity REAL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+            conn.commit()
+
+            # 创建年度客供比表
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS yearly_customer_supply_ratio (
+                    year TEXT PRIMARY KEY,
+                    ratio_value REAL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+            conn.commit()
+
+            # 创建年度总需求表
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS yearly_total_demand (
+                    year TEXT PRIMARY KEY,
+                    demand_value REAL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+            conn.commit()
+
     def create_record(self, record):
         """创建新记录"""
         with self.get_connection() as conn:
             cursor = conn.execute('''
                 INSERT INTO kpi_records
-                (month, product_name, target_quantity, purchase_quantity, purchase_price,
+                (month, product_name, target_quantity, purchase_quantity, purchase_price, kpi_smm_price,
                  inventory_quantity, inventory_cost, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (record.month, record.product_name, record.target_quantity, record.purchase_quantity,
-                  record.purchase_price, record.inventory_quantity, record.inventory_cost,
+                  record.purchase_price, record.kpi_smm_price, record.inventory_quantity, record.inventory_cost,
                   record.created_at, record.updated_at))
             conn.commit()
             record.id = cursor.lastrowid
@@ -240,8 +294,8 @@ class KPIDB:
     def update_field(self, record_id, field_name, value):
         """更新单个字段"""
         with self.get_connection() as conn:
-            valid_fields = ['month', 'product_name', 'purchase_quantity', 'purchase_price',
-                           'inventory_quantity', 'inventory_cost']
+            valid_fields = ['month', 'product_name', 'purchase_quantity', 'purchase_price', 'kpi_smm_price',
+                           'inventory_quantity', 'inventory_cost', 'target_quantity']
             if field_name not in valid_fields:
                 raise ValueError(f"无效的字段名: {field_name}")
 
@@ -326,6 +380,128 @@ class KPIDB:
             for row in rows:
                 result[row['month']] = row['inventory_quantity']
             return result
+
+    # ==================== 每月目标管理 ====================
+
+    def get_monthly_target(self, month):
+        """获取指定月份的目标量"""
+        with self.get_connection() as conn:
+            row = conn.execute('SELECT target_quantity FROM monthly_targets WHERE month = ?', (month,)).fetchone()
+            if row:
+                return row['target_quantity']
+            return None
+
+    def set_monthly_target(self, month, quantity):
+        """设置指定月份的目标量"""
+        with self.get_connection() as conn:
+            updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute('''
+                INSERT INTO monthly_targets (month, target_quantity, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(month) DO UPDATE SET
+                    target_quantity = excluded.target_quantity,
+                    updated_at = excluded.updated_at
+            ''', (month, quantity, updated_at))
+            conn.commit()
+
+    def get_all_monthly_targets(self, year):
+        """获取指定年份的所有月度目标"""
+        with self.get_connection() as conn:
+            rows = conn.execute('SELECT month, target_quantity FROM monthly_targets WHERE month LIKE ? ORDER BY month', (f'{year}%',)).fetchall()
+            result = {}
+            for row in rows:
+                result[row['month']] = row['target_quantity']
+            return result
+
+    # ==================== 每月需求管理 ====================
+
+    def get_monthly_demand(self, month):
+        """获取指定月份的需求量"""
+        with self.get_connection() as conn:
+            row = conn.execute('SELECT demand_quantity FROM monthly_demands WHERE month = ?', (month,)).fetchone()
+            if row:
+                return row['demand_quantity']
+            return None
+
+    def set_monthly_demand(self, month, quantity):
+        """设置指定月份的需求量"""
+        with self.get_connection() as conn:
+            updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute('''
+                INSERT INTO monthly_demands (month, demand_quantity, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(month) DO UPDATE SET
+                    demand_quantity = excluded.demand_quantity,
+                    updated_at = excluded.updated_at
+            ''', (month, quantity, updated_at))
+            conn.commit()
+
+    def get_all_monthly_demands(self, year):
+        """获取指定年份的所有月度需求"""
+        with self.get_connection() as conn:
+            rows = conn.execute('SELECT month, demand_quantity FROM monthly_demands WHERE month LIKE ? ORDER BY month', (f'{year}%',)).fetchall()
+            result = {}
+            for row in rows:
+                result[row['month']] = row['demand_quantity']
+            return result
+
+    # ==================== 年度客供比管理 ====================
+
+    def get_yearly_customer_supply_ratio(self, year):
+        """获取指定年份的客供比"""
+        with self.get_connection() as conn:
+            row = conn.execute('SELECT ratio_value FROM yearly_customer_supply_ratio WHERE year = ?', (year,)).fetchone()
+            if row:
+                return row['ratio_value']
+            return None
+
+    def set_yearly_customer_supply_ratio(self, year, ratio):
+        """设置指定年份的客供比"""
+        with self.get_connection() as conn:
+            updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute('''
+                INSERT INTO yearly_customer_supply_ratio (year, ratio_value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(year) DO UPDATE SET
+                    ratio_value = excluded.ratio_value,
+                    updated_at = excluded.updated_at
+            ''', (year, ratio, updated_at))
+            conn.commit()
+
+    # ==================== 年度总需求管理 ====================
+
+    def get_yearly_total_demand(self, year):
+        """获取指定年份的总需求"""
+        with self.get_connection() as conn:
+            row = conn.execute('SELECT demand_value FROM yearly_total_demand WHERE year = ?', (year,)).fetchone()
+            if row:
+                return row['demand_value']
+            return None
+
+    def set_yearly_total_demand(self, year, demand):
+        """设置指定年份的总需求"""
+        with self.get_connection() as conn:
+            updated_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute('''
+                INSERT INTO yearly_total_demand (year, demand_value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(year) DO UPDATE SET
+                    demand_value = excluded.demand_value,
+                    updated_at = excluded.updated_at
+            ''', (year, demand, updated_at))
+            conn.commit()
+
+    def calculate_target_from_demand_and_yearly_ratio(self, year):
+        """根据需求量和年度客供比计算该年所有月份的目标量"""
+        ratio = self.get_yearly_customer_supply_ratio(year)
+        if ratio is None:
+            return
+
+        monthly_demands = self.get_all_monthly_demands(year)
+        for month, demand in monthly_demands.items():
+            if demand is not None:
+                target = demand * ratio
+                self.set_monthly_target(month, target)
 
 
 # 创建全局实例

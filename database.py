@@ -85,14 +85,44 @@ class DatabaseManager:
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS smm_prices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    price_date TEXT NOT NULL UNIQUE,
+                    price_date TEXT NOT NULL,
+                    product_name TEXT NOT NULL DEFAULT '碳酸锂',
                     highest_price REAL NOT NULL,
                     lowest_price REAL NOT NULL,
                     average_price REAL NOT NULL,
                     created_at TEXT,
-                    updated_at TEXT
+                    updated_at TEXT,
+                    UNIQUE(price_date, product_name)
                 )
             ''')
+
+            # 检查是否需要添加product_name字段（用于迁移）
+            cursor = conn.execute("PRAGMA table_info(smm_prices)")
+            columns = [row['name'] for row in cursor.fetchall()]
+            if 'product_name' not in columns:
+                # 如果旧表存在，需要迁移数据
+                conn.execute('''
+                    CREATE TABLE smm_prices_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        price_date TEXT NOT NULL,
+                        product_name TEXT NOT NULL DEFAULT '碳酸锂',
+                        highest_price REAL NOT NULL,
+                        lowest_price REAL NOT NULL,
+                        average_price REAL NOT NULL,
+                        created_at TEXT,
+                        updated_at TEXT,
+                        UNIQUE(price_date, product_name)
+                    )
+                ''')
+                # 迁移旧数据，默认设为碳酸锂
+                conn.execute('''
+                    INSERT INTO smm_prices_new (price_date, product_name, highest_price, lowest_price, average_price, created_at, updated_at)
+                    SELECT price_date, '碳酸锂', highest_price, lowest_price, average_price, created_at, updated_at
+                    FROM smm_prices
+                ''')
+                # 删除旧表，重命名新表
+                conn.execute('DROP TABLE smm_prices')
+                conn.execute('ALTER TABLE smm_prices_new RENAME TO smm_prices')
 
             # 创建期货价格表
             conn.execute('''
@@ -312,12 +342,12 @@ class DatabaseManager:
         with self.get_connection() as conn:
             cursor = conn.execute('''
                 INSERT INTO smm_prices (
-                    price_date, highest_price, lowest_price, average_price,
+                    price_date, product_name, highest_price, lowest_price, average_price,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                smm_price.price_date, smm_price.highest_price,
-                smm_price.lowest_price, smm_price.average_price,
+                smm_price.price_date, smm_price.product_name or '碳酸锂',
+                smm_price.highest_price, smm_price.lowest_price, smm_price.average_price,
                 smm_price.created_at, smm_price.updated_at
             ))
             return cursor.lastrowid
@@ -330,24 +360,30 @@ class DatabaseManager:
                 return self._row_to_smm_price(row)
             return None
 
-    def get_all_smm_prices(self, order_by: str = 'price_date', order: str = 'DESC') -> List[SMMPrice]:
+    def get_all_smm_prices(self, product_name: Optional[str] = None, order_by: str = 'price_date', order: str = 'DESC') -> List[SMMPrice]:
         """获取所有SMM价格记录"""
-        query = f'SELECT * FROM smm_prices ORDER BY {order_by} {order}'
-        with self.get_connection() as conn:
-            rows = conn.execute(query).fetchall()
-            return [self._row_to_smm_price(row) for row in rows]
+        if product_name:
+            query = f'SELECT * FROM smm_prices WHERE product_name = ? ORDER BY {order_by} {order}'
+            with self.get_connection() as conn:
+                rows = conn.execute(query, (product_name,)).fetchall()
+                return [self._row_to_smm_price(row) for row in rows]
+        else:
+            query = f'SELECT * FROM smm_prices ORDER BY {order_by} {order}'
+            with self.get_connection() as conn:
+                rows = conn.execute(query).fetchall()
+                return [self._row_to_smm_price(row) for row in rows]
 
     def update_smm_price(self, smm_price: SMMPrice) -> bool:
         """更新SMM价格记录"""
         with self.get_connection() as conn:
             conn.execute('''
                 UPDATE smm_prices SET
-                    price_date = ?, highest_price = ?, lowest_price = ?,
+                    price_date = ?, product_name = ?, highest_price = ?, lowest_price = ?,
                     average_price = ?, updated_at = ?
                 WHERE id = ?
             ''', (
-                smm_price.price_date, smm_price.highest_price,
-                smm_price.lowest_price, smm_price.average_price,
+                smm_price.price_date, smm_price.product_name or '碳酸锂',
+                smm_price.highest_price, smm_price.lowest_price, smm_price.average_price,
                 smm_price.updated_at, smm_price.id
             ))
             return conn.total_changes > 0
@@ -358,54 +394,89 @@ class DatabaseManager:
             conn.execute('DELETE FROM smm_prices WHERE id = ?', (price_id,))
             return conn.total_changes > 0
 
-    def get_latest_smm_price(self) -> Optional[SMMPrice]:
+    def get_latest_smm_price(self, product_name: Optional[str] = None) -> Optional[SMMPrice]:
         """获取最新的SMM月均价"""
         with self.get_connection() as conn:
-            row = conn.execute('SELECT * FROM smm_prices ORDER BY price_date DESC LIMIT 1').fetchone()
+            if product_name:
+                row = conn.execute('SELECT * FROM smm_prices WHERE product_name = ? ORDER BY price_date DESC LIMIT 1', (product_name,)).fetchone()
+            else:
+                row = conn.execute('SELECT * FROM smm_prices ORDER BY price_date DESC LIMIT 1').fetchone()
             if row:
                 return self._row_to_smm_price(row)
             return None
 
-    def get_smm_price_by_date(self, date: str) -> Optional[SMMPrice]:
+    def get_smm_price_by_date(self, date: str, product_name: Optional[str] = None) -> Optional[SMMPrice]:
         """根据日期查找SMM价格（查找当天或最近之前的）"""
         with self.get_connection() as conn:
-            # 先尝试查找精确匹配的日期
-            row = conn.execute('SELECT * FROM smm_prices WHERE price_date <= ? ORDER BY price_date DESC LIMIT 1', (date,)).fetchone()
+            if product_name:
+                row = conn.execute(
+                    'SELECT * FROM smm_prices WHERE product_name = ? AND price_date <= ? ORDER BY price_date DESC LIMIT 1',
+                    (product_name, date)
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    'SELECT * FROM smm_prices WHERE price_date <= ? ORDER BY price_date DESC LIMIT 1',
+                    (date,)
+                ).fetchone()
             if row:
                 return self._row_to_smm_price(row)
             return None
 
-    def get_monthly_smm_average(self) -> float:
+    def get_monthly_smm_average(self, product_name: Optional[str] = None) -> float:
         """计算SMM月度平均价格"""
         with self.get_connection() as conn:
-            row = conn.execute('SELECT AVG(average_price) as avg_price FROM smm_prices').fetchone()
+            if product_name:
+                row = conn.execute(
+                    'SELECT AVG(average_price) as avg_price FROM smm_prices WHERE product_name = ?',
+                    (product_name,)
+                ).fetchone()
+            else:
+                row = conn.execute('SELECT AVG(average_price) as avg_price FROM smm_prices').fetchone()
             return row[0] if row and row[0] else 0.0
 
-    def get_smm_prices_by_date_range(self, start_date: str, end_date: str) -> List[SMMPrice]:
+    def get_smm_prices_by_date_range(self, start_date: str, end_date: str, product_name: Optional[str] = None) -> List[SMMPrice]:
         """获取指定日期范围的SMM价格"""
         with self.get_connection() as conn:
-            rows = conn.execute(
-                'SELECT * FROM smm_prices WHERE price_date BETWEEN ? AND ? ORDER BY price_date ASC',
-                (start_date, end_date)
-            ).fetchall()
+            if product_name:
+                rows = conn.execute(
+                    'SELECT * FROM smm_prices WHERE product_name = ? AND price_date BETWEEN ? AND ? ORDER BY price_date ASC',
+                    (product_name, start_date, end_date)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    'SELECT * FROM smm_prices WHERE price_date BETWEEN ? AND ? ORDER BY price_date ASC',
+                    (start_date, end_date)
+                ).fetchall()
             return [self._row_to_smm_price(row) for row in rows]
 
-    def get_smm_prices_by_month(self, year: int, month: int) -> List[SMMPrice]:
+    def get_smm_prices_by_month(self, year: int, month: int, product_name: Optional[str] = None) -> List[SMMPrice]:
         """获取指定年月的SMM价格"""
         month_str = f"{year}-{month:02d}"
         with self.get_connection() as conn:
-            rows = conn.execute(
-                'SELECT * FROM smm_prices WHERE price_date LIKE ? ORDER BY price_date ASC',
-                (f"{month_str}%",)
-            ).fetchall()
+            if product_name:
+                rows = conn.execute(
+                    'SELECT * FROM smm_prices WHERE product_name = ? AND price_date LIKE ? ORDER BY price_date ASC',
+                    (product_name, f"{month_str}%")
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    'SELECT * FROM smm_prices WHERE price_date LIKE ? ORDER BY price_date ASC',
+                    (f"{month_str}%",)
+                ).fetchall()
             return [self._row_to_smm_price(row) for row in rows]
 
-    def get_available_smm_months(self) -> List[str]:
+    def get_available_smm_months(self, product_name: Optional[str] = None) -> List[str]:
         """获取所有可用的年月列表（格式: YYYY-MM）"""
         with self.get_connection() as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT substr(price_date, 1, 7) as month FROM smm_prices ORDER BY month DESC"
-            ).fetchall()
+            if product_name:
+                rows = conn.execute(
+                    "SELECT DISTINCT substr(price_date, 1, 7) as month FROM smm_prices WHERE product_name = ? ORDER BY month DESC",
+                    (product_name,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT DISTINCT substr(price_date, 1, 7) as month FROM smm_prices ORDER BY month DESC"
+                ).fetchall()
             return [row['month'] for row in rows]
 
     def _row_to_price(self, row, price_class):
@@ -427,7 +498,16 @@ class DatabaseManager:
 
     def _row_to_smm_price(self, row) -> SMMPrice:
         """将数据库行转换为SMMPrice对象"""
-        return self._row_to_price(row, SMMPrice)
+        return SMMPrice(
+            id=row['id'],
+            price_date=row['price_date'],
+            product_name=row['product_name'] if 'product_name' in row.keys() else '碳酸锂',
+            highest_price=row['highest_price'],
+            lowest_price=row['lowest_price'],
+            average_price=row['average_price'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at']
+        )
 
     # ==================== 期货价格管理 ====================
 
