@@ -15,6 +15,7 @@ from futures_model import FuturesPrice
 from product_model import Product
 from physical_model import PhysicalPurchase, physical_db
 from billing_model import billing_db
+from kpi_model import KPIRecord, kpi_db
 from utils import export_to_csv, import_from_csv, format_currency, format_unit_price, format_percentage, get_color_for_value, export_trades_to_csv
 from markupsafe import Markup
 
@@ -664,6 +665,117 @@ def delete_billing(billing_id):
         flash(f'删除失败: {str(e)}', 'error')
 
     return redirect(url_for('billing'))
+
+
+# ==================== KPI 追踪路由 ====================
+
+@app.route('/kpi')
+def kpi():
+    """KPI追踪主页"""
+    from datetime import datetime
+
+    # 获取筛选参数
+    product_filter = request.args.get('product', '')
+
+    # 获取所有记录
+    records = kpi_db.get_all_records(product=product_filter if product_filter else None)
+
+    # 获取统计数据
+    current_month = datetime.now().strftime('%Y-%m')
+    stats = kpi_db.get_monthly_stats(month=current_month)
+
+    # 计算降本数据
+    for record in records:
+        # 获取该月SMM均价
+        year, month = record.month.split('-')
+        smm_prices = db.get_smm_prices_by_month(int(year), int(month))
+        if smm_prices:
+            smm_avg = sum(p.average_price for p in smm_prices) / len(smm_prices)
+            record.smm_avg_price = smm_avg
+            # 计算降本
+            if record.actual_avg_price:
+                record.cost_saving = smm_avg - record.actual_avg_price
+                record.cost_saving_pct = (record.cost_saving / smm_avg * 100) if smm_avg > 0 else 0
+            else:
+                record.cost_saving = None
+                record.cost_saving_pct = None
+        else:
+            record.smm_avg_price = None
+            record.cost_saving = None
+            record.cost_saving_pct = None
+
+    # 获取品种列表
+    products = ['碳酸锂', '氢氧化锂']
+
+    return render_template('kpi.html',
+                          records=records,
+                          stats=stats,
+                          products=products,
+                          current_product=product_filter,
+                          current_month=current_month)
+
+
+@app.route('/kpi/new', methods=['POST'])
+def new_kpi_record():
+    """创建新的KPI记录"""
+    try:
+        record = KPIRecord(
+            month=request.form.get('month'),
+            product_name=request.form.get('product_name'),
+            actual_quantity=float(request.form.get('actual_quantity')) if request.form.get('actual_quantity') else None,
+            actual_avg_price=float(request.form.get('actual_avg_price')) if request.form.get('actual_avg_price') else None,
+            forecast_quantity=float(request.form.get('forecast_quantity')) if request.form.get('forecast_quantity') else None,
+            forecast_avg_price=float(request.form.get('forecast_avg_price')) if request.form.get('forecast_avg_price') else None
+        )
+        kpi_db.create_record(record)
+        flash('KPI记录创建成功', 'success')
+    except Exception as e:
+        logger.error(f"创建KPI记录失败: {e}")
+        flash(f'创建失败: {str(e)}', 'error')
+
+    return redirect(url_for('kpi'))
+
+
+@app.route('/kpi/<int:record_id>/edit', methods=['GET', 'POST'])
+def edit_kpi_record(record_id):
+    """编辑KPI记录"""
+    record = kpi_db.get_record_by_id(record_id)
+
+    if not record:
+        flash('记录不存在', 'error')
+        return redirect(url_for('kpi'))
+
+    if request.method == 'POST':
+        try:
+            record.month = request.form.get('month')
+            record.product_name = request.form.get('product_name')
+            record.actual_quantity = float(request.form.get('actual_quantity')) if request.form.get('actual_quantity') else None
+            record.actual_avg_price = float(request.form.get('actual_avg_price')) if request.form.get('actual_avg_price') else None
+            record.forecast_quantity = float(request.form.get('forecast_quantity')) if request.form.get('forecast_quantity') else None
+            record.forecast_avg_price = float(request.form.get('forecast_avg_price')) if request.form.get('forecast_avg_price') else None
+
+            kpi_db.update_record(record)
+            flash('KPI记录更新成功', 'success')
+            return redirect(url_for('kpi'))
+        except Exception as e:
+            logger.error(f"更新KPI记录失败: {e}")
+            flash(f'更新失败: {str(e)}', 'error')
+
+    # GET请求 - 返回JSON用于前端填充表单
+    return jsonify(record.to_dict())
+
+
+@app.route('/kpi/<int:record_id>/delete', methods=['POST'])
+def delete_kpi_record(record_id):
+    """删除KPI记录"""
+    try:
+        kpi_db.delete_record(record_id)
+        flash('KPI记录删除成功', 'success')
+    except Exception as e:
+        logger.error(f"删除KPI记录失败: {e}")
+        flash(f'删除失败: {str(e)}', 'error')
+
+    return redirect(url_for('kpi'))
 
 
 @app.route('/api/smm_month_price')

@@ -44,6 +44,9 @@
                             <a href="{{ url_for('billing') }}" class="nav-link {% if request.endpoint in ['billing', 'create_billing', 'edit_billing'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                                 账务管理
                             </a>
+                            <a href="{{ url_for('kpi') }}" class="nav-link {% if request.endpoint in ['kpi', 'new_kpi_record', 'edit_kpi_record'] %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                KPI追踪
+                            </a>
                             <a href="{{ url_for('import_sync') }}" class="nav-link {% if request.endpoint == 'import_sync' or request.endpoint == 'export_sync' %}active{% endif %} text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
                                 数据同步
                             </a>
@@ -68,6 +71,7 @@
                     <a href="{{ url_for('futures_prices') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">期货价格</a>
                     <a href="{{ url_for('physical_purchases') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">实物管理</a>
                     <a href="{{ url_for('billing') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">账务管理</a>
+                    <a href="{{ url_for('kpi') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">KPI追踪</a>
                     <a href="{{ url_for('import_sync') }}" class="text-white/90 hover:bg-white/10 block px-3 py-2 rounded-md text-base font-medium">数据同步</a>
                 </div>
             </div>
