@@ -47,6 +47,41 @@
               {% set _ = records_dict.update({r.month + '_' + r.product_name: r}) %}
             {% endfor %}
 
+            <!-- 目标量 -->
+            <tr class="bg-green-50/30 hover:bg-green-50/50">
+                <td class="px-4 py-2 text-sm font-medium text-green-700 bg-green-100 sticky left-0 z-10">
+                    目标量(吨)
+                </td>
+                {% for month in months %}
+                {% set lithium = records_dict.get(month + '_碳酸锂') %}
+                {% set hydroxide = records_dict.get(month + '_氢氧化锂') %}
+                <td class="px-3 py-2 text-center">
+                    <div class="flex gap-1 justify-center">
+                        <input type="number"
+                               class="w-20 px-2 py-1 text-right text-xs border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-green-500 rounded"
+                               data-month="{{ month }}"
+                               data-product="碳酸锂"
+                               data-field="target_quantity"
+                               value="{{ lithium.target_quantity if lithium and lithium.target_quantity else '' }}"
+                               placeholder="-"
+                               step="0.01"
+                               onchange="updateCell(this)"
+                               title="碳酸锂目标量">
+                        <input type="number"
+                               class="w-20 px-2 py-1 text-right text-xs border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-teal-500 rounded"
+                               data-month="{{ month }}"
+                               data-product="氢氧化锂"
+                               data-field="target_quantity"
+                               value="{{ hydroxide.target_quantity if hydroxide and hydroxide.target_quantity else '' }}"
+                               placeholder="-"
+                               step="0.01"
+                               onchange="updateCell(this)"
+                               title="氢氧化锂目标量">
+                    </div>
+                </td>
+                {% endfor %}
+            </tr>
+
             <!-- 碳酸锂 - 采购量 -->
             <tr class="bg-indigo-50/30 hover:bg-indigo-50/50">
                 <td class="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 sticky left-0 z-10">
@@ -64,15 +99,6 @@
                            placeholder="-"
                            step="0.01"
                            onchange="updateCell(this)">
-                    {% if record and record.purchase_price is not none %}
-                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '碳酸锂', {{ record.purchase_price }})">
-                        {{ format_unit_price(record.purchase_price) }}
-                    </div>
-                    {% else %}
-                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '碳酸锂', null)">
-                        点击设置价格
-                    </div>
-                    {% endif %}
                 </td>
                 {% endfor %}
             </tr>
@@ -123,15 +149,48 @@
                            placeholder="-"
                            step="0.01"
                            onchange="updateCell(this)">
-                    {% if record and record.purchase_price is not none %}
-                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '氢氧化锂', {{ record.purchase_price }})">
-                        {{ format_unit_price(record.purchase_price) }}
-                    </div>
-                    {% else %}
-                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '氢氧化锂', null)">
-                        点击设置价格
-                    </div>
-                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+
+            <!-- 碳酸锂 - 采购均价 -->
+            <tr class="bg-indigo-50/20 hover:bg-indigo-50/40">
+                <td class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 sticky left-0 z-10">
+                    碳酸锂 - 采购均价
+                </td>
+                {% for month in months %}
+                {% set record = records_dict.get(month + '_碳酸锂') %}
+                <td class="px-3 py-2 text-center">
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="碳酸锂"
+                           data-field="purchase_price"
+                           value="{{ record.purchase_price if record and record.purchase_price else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateCell(this)">
+                </td>
+                {% endfor %}
+            </tr>
+
+            <!-- 氢氧化锂 - 采购均价 -->
+            <tr class="bg-blue-50/20 hover:bg-blue-50/40">
+                <td class="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 sticky left-0 z-10">
+                    氢氧化锂 - 采购均价
+                </td>
+                {% for month in months %}
+                {% set record = records_dict.get(month + '_氢氧化锂') %}
+                <td class="px-3 py-2 text-center">
+                    <input type="number"
+                           class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
+                           data-month="{{ month }}"
+                           data-product="氢氧化锂"
+                           data-field="purchase_price"
+                           value="{{ record.purchase_price if record and record.purchase_price else '' }}"
+                           placeholder="-"
+                           step="0.01"
+                           onchange="updateCell(this)">
                 </td>
                 {% endfor %}
             </tr>
@@ -189,36 +248,7 @@
         <div><span class="text-red-600 font-medium">红色数值</span>：溢价（采购价高于SMM均价）</div>
     </div>
     <div class="mt-2 text-xs text-gray-500">
-        * 点击单元格可直接编辑数值，采购价显示在采购量下方
-    </div>
-</div>
-
-<!-- 采购均价编辑模态框 -->
-<div id="priceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div class="flex justify-between items-center mb-4">
-            <h3 id="priceModalTitle" class="text-lg font-medium text-gray-900">编辑采购均价</h3>
-            <button onclick="closePriceModal()" class="text-gray-400 hover:text-gray-500">
-                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        <form onsubmit="savePrice(event)" class="space-y-4">
-            <input type="hidden" id="priceMonth">
-            <input type="hidden" id="priceProduct">
-
-            <div>
-                <label class="block text-sm font-medium text-gray-700">采购均价（元/吨）</label>
-                <input type="number" id="priceValue" step="0.01" min="0" required
-                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-            </div>
-
-            <div class="flex justify-end space-x-3 pt-4 border-t">
-                <button type="button" onclick="closePriceModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">取消</button>
-                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">保存</button>
-            </div>
-        </form>
+        * 点击单元格可直接编辑数值
     </div>
 </div>
 
@@ -309,63 +339,6 @@ function changeYear() {
 function refreshData() {
     location.reload();
 }
-
-// 打开采购均价编辑模态框
-function openPriceModal(month, product, currentPrice) {
-    document.getElementById('priceMonth').value = month;
-    document.getElementById('priceProduct').value = product;
-    document.getElementById('priceValue').value = currentPrice || '';
-    document.getElementById('priceModalTitle').textContent = `编辑采购均价 - ${month} ${product}`;
-    document.getElementById('priceModal').classList.remove('hidden');
-    document.getElementById('priceValue').focus();
-}
-
-// 关闭采购均价模态框
-function closePriceModal() {
-    document.getElementById('priceModal').classList.add('hidden');
-}
-
-// 保存采购均价
-async function savePrice(event) {
-    event.preventDefault();
-
-    const month = document.getElementById('priceMonth').value;
-    const product = document.getElementById('priceProduct').value;
-    let value = document.getElementById('priceValue').value;
-
-    if (value === '') value = null;
-
-    try {
-        const response = await fetch('/api/kpi/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                month: month,
-                product_name: product,
-                field: 'purchase_price',
-                value: value
-            })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            closePriceModal();
-            location.reload();
-        } else {
-            alert('保存失败: ' + (data.error || '未知错误'));
-        }
-    } catch (error) {
-        console.error('保存失败:', error);
-        alert('保存失败');
-    }
-}
-
-// 点击模态框外部关闭
-document.getElementById('priceModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closePriceModal();
-    }
-});
 
 // 保存输入框的原始值
 document.addEventListener('DOMContentLoaded', function() {

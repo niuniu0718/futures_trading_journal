@@ -742,7 +742,7 @@ def api_kpi_update():
             return jsonify({'success': True})
 
         # 验证字段
-        valid_fields = ['purchase_quantity', 'purchase_price']
+        valid_fields = ['target_quantity', 'purchase_quantity', 'purchase_price']
         if field not in valid_fields:
             return jsonify({'success': False, 'error': f'无效的字段: {field}'})
 

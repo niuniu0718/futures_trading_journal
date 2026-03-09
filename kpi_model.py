@@ -12,6 +12,7 @@ class KPIRecord:
     id: Optional[int] = None
     month: str = None  # 月份 YYYY-MM
     product_name: str = None  # 品种：碳酸锂/氢氧化锂
+    target_quantity: Optional[float] = None  # 目标量（吨）
     purchase_quantity: Optional[float] = None  # 采购量（吨）
     purchase_price: Optional[float] = None  # 采购均价
     inventory_quantity: Optional[float] = None  # 库存数量（吨）- 已废弃，使用monthly_inventory
@@ -34,6 +35,7 @@ class KPIRecord:
             'id': self.id,
             'month': self.month,
             'product_name': self.product_name,
+            'target_quantity': self.target_quantity,
             'purchase_quantity': self.purchase_quantity,
             'purchase_price': self.purchase_price,
             'inventory_quantity': self.inventory_quantity,
@@ -71,6 +73,7 @@ class KPIDB:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         month TEXT NOT NULL,
                         product_name TEXT NOT NULL,
+                        target_quantity REAL,
                         purchase_quantity REAL,
                         purchase_price REAL,
                         inventory_quantity REAL,
@@ -81,9 +84,13 @@ class KPIDB:
                     )
                 ''')
             else:
-                # 检查是否需要迁移
+                # 检查是否需要添加target_quantity字段
                 cursor = conn.execute("PRAGMA table_info(kpi_records)")
                 columns = [row['name'] for row in cursor.fetchall()]
+
+                if 'target_quantity' not in columns:
+                    # 添加target_quantity字段
+                    conn.execute('ALTER TABLE kpi_records ADD COLUMN target_quantity REAL')
 
                 # 如果有旧字段但没有新字段，进行迁移
                 if 'actual_quantity' in columns and 'purchase_quantity' not in columns:
@@ -99,6 +106,7 @@ class KPIDB:
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             month TEXT NOT NULL,
                             product_name TEXT NOT NULL,
+                            target_quantity REAL,
                             purchase_quantity REAL,
                             purchase_price REAL,
                             inventory_quantity REAL,
@@ -109,7 +117,7 @@ class KPIDB:
                         )
                     ''')
 
-                    # 迁移数据（actual_quantity -> purchase_quantity, actual_avg_price -> purchase_price）
+                    # 迁移数据
                     for row in old_data:
                         try:
                             conn.execute('''
@@ -140,10 +148,10 @@ class KPIDB:
         with self.get_connection() as conn:
             cursor = conn.execute('''
                 INSERT INTO kpi_records
-                (month, product_name, purchase_quantity, purchase_price,
+                (month, product_name, target_quantity, purchase_quantity, purchase_price,
                  inventory_quantity, inventory_cost, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (record.month, record.product_name, record.purchase_quantity,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (record.month, record.product_name, record.target_quantity, record.purchase_quantity,
                   record.purchase_price, record.inventory_quantity, record.inventory_cost,
                   record.created_at, record.updated_at))
             conn.commit()
@@ -157,6 +165,7 @@ class KPIDB:
             if row:
                 return KPIRecord(
                     id=row['id'], month=row['month'], product_name=row['product_name'],
+                    target_quantity=row['target_quantity'] if 'target_quantity' in row.keys() else None,
                     purchase_quantity=row['purchase_quantity'], purchase_price=row['purchase_price'],
                     inventory_quantity=row['inventory_quantity'], inventory_cost=row['inventory_cost'],
                     created_at=row['created_at'], updated_at=row['updated_at']
@@ -170,6 +179,7 @@ class KPIDB:
             if row:
                 return KPIRecord(
                     id=row['id'], month=row['month'], product_name=row['product_name'],
+                    target_quantity=row['target_quantity'] if 'target_quantity' in row.keys() else None,
                     purchase_quantity=row['purchase_quantity'], purchase_price=row['purchase_price'],
                     inventory_quantity=row['inventory_quantity'], inventory_cost=row['inventory_cost'],
                     created_at=row['created_at'], updated_at=row['updated_at']
@@ -197,6 +207,7 @@ class KPIDB:
             for row in rows:
                 records.append(KPIRecord(
                     id=row['id'], month=row['month'], product_name=row['product_name'],
+                    target_quantity=row['target_quantity'] if 'target_quantity' in row.keys() else None,
                     purchase_quantity=row['purchase_quantity'], purchase_price=row['purchase_price'],
                     inventory_quantity=row['inventory_quantity'], inventory_cost=row['inventory_cost'],
                     created_at=row['created_at'], updated_at=row['updated_at']
@@ -269,10 +280,10 @@ class KPIDB:
         with self.get_connection() as conn:
             conn.execute('''
                 UPDATE kpi_records
-                SET month=?, product_name=?, purchase_quantity=?, purchase_price=?,
+                SET month=?, product_name=?, target_quantity=?, purchase_quantity=?, purchase_price=?,
                     inventory_quantity=?, inventory_cost=?, updated_at=?
                 WHERE id=?
-            ''', (record.month, record.product_name, record.purchase_quantity,
+            ''', (record.month, record.product_name, record.target_quantity, record.purchase_quantity,
                   record.purchase_price, record.inventory_quantity, record.inventory_cost,
                   record.updated_at, record.id))
             conn.commit()
