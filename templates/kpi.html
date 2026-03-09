@@ -42,6 +42,10 @@
                 {% set _ = smm_prices_by_month.update({r.month: r.smm_avg_price}) %}
               {% endif %}
             {% endfor %}
+            {% set records_dict = {} %}
+            {% for r in records %}
+              {% set _ = records_dict.update({r.month + '_' + r.product_name: r}) %}
+            {% endfor %}
 
             <!-- 碳酸锂 - 采购量 -->
             <tr class="bg-indigo-50/30 hover:bg-indigo-50/50">
@@ -49,10 +53,7 @@
                     碳酸锂 - 采购量(吨)
                 </td>
                 {% for month in months %}
-                {% set record = None %}
-                {% for r in records %}
-                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set record = r %}{% endif %}
-                {% endfor %}
+                {% set record = records_dict.get(month + '_碳酸锂') %}
                 <td class="px-3 py-2 text-center">
                     <input type="number"
                            class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded"
@@ -64,11 +65,11 @@
                            step="0.01"
                            onchange="updateCell(this)">
                     {% if record and record.purchase_price is not none %}
-                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name }}', {{ record.purchase_price }})">
+                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '碳酸锂', {{ record.purchase_price }})">
                         {{ format_unit_price(record.purchase_price) }}
                     </div>
                     {% else %}
-                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name if record else '碳酸锂' }}', null)">
+                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '碳酸锂', null)">
                         点击设置价格
                     </div>
                     {% endif %}
@@ -82,21 +83,17 @@
                     库存(吨)
                 </td>
                 {% for month in months %}
-                {% set record = None %}
-                {% for r in records %}
-                  {% if r.month == month %}{% set record = r %}{% endif %}
-                {% endfor %}
-                {% set month_inventory = record.total_inventory if record else None %}
+                {% set record = records_dict.get(month + '_碳酸锂') %}
                 <td class="px-3 py-2 text-center">
                     <input type="number"
                            class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-amber-500 rounded"
                            data-month="{{ month }}"
                            data-field="monthly_inventory"
-                           value="{{ month_inventory if month_inventory else '' }}"
+                           value="{{ record.total_inventory if record and record.total_inventory else '' }}"
                            placeholder="-"
                            step="0.01"
                            onchange="updateCell(this)">
-                    {% if record and month_inventory and record.inventory_saving is not none %}
+                    {% if record and record.total_inventory and record.inventory_saving is not none %}
                     <div class="text-xs {% if record.inventory_saving > 0 %}text-green-600{% elif record.inventory_saving < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
                         {% if record.inventory_saving != 0 %}
                         {{ '+' if record.inventory_saving > 0 else '' }}{{ format_currency(record.inventory_saving) }}
@@ -115,10 +112,7 @@
                     氢氧化锂 - 采购量(吨)
                 </td>
                 {% for month in months %}
-                {% set record = None %}
-                {% for r in records %}
-                  {% if r.month == month and r.product_name == '氢氧化锂' %}{% set record = r %}{% endif %}
-                {% endfor %}
+                {% set record = records_dict.get(month + '_氢氧化锂') %}
                 <td class="px-3 py-2 text-center">
                     <input type="number"
                            class="w-full px-2 py-1 text-right text-sm border-0 bg-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 rounded"
@@ -130,11 +124,11 @@
                            step="0.01"
                            onchange="updateCell(this)">
                     {% if record and record.purchase_price is not none %}
-                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name }}', {{ record.purchase_price }})">
+                    <div class="text-xs text-gray-500 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '氢氧化锂', {{ record.purchase_price }})">
                         {{ format_unit_price(record.purchase_price) }}
                     </div>
                     {% else %}
-                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '{{ record.product_name if record else '碳酸锂' }}', null)">
+                    <div class="text-xs text-gray-400 cursor-pointer hover:text-indigo-600 underline" onclick="openPriceModal('{{ month }}', '氢氧化锂', null)">
                         点击设置价格
                     </div>
                     {% endif %}
@@ -169,10 +163,7 @@
                     降本比例
                 </td>
                 {% for month in months %}
-                {% set record = None %}
-                {% for r in records %}
-                  {% if r.month == month and r.product_name == '碳酸锂' %}{% set record = r %}{% endif %}
-                {% endfor %}
+                {% set record = records_dict.get(month + '_碳酸锂') %}
                 <td class="px-3 py-2 text-center text-sm">
                     {% if record and record.cost_saving_pct is not none %}
                     <span class="{% if record.cost_saving_pct > 0 %}text-green-600 font-semibold{% elif record.cost_saving_pct < 0 %}text-red-600 font-semibold{% else %}text-gray-600{% endif %}">
